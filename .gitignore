@@ -1,0 +1,16 @@
+forgefocus_provider_keys.txt
+.env
+.env.*
+!.env.example
+forgefocus-curl-*
+forgefocus-body-*
+focusforge_tasks.tsv
+focusforge_settings.txt
+focusforge_game_profile.txt
+memory_leak_student_*.txt
+memory_leak_study.txt
+memory-leak-server
+focusforge-server
+forgefocus-ai-server
+game2.css
+round.css

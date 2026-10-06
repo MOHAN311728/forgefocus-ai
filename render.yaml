@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: forgefocus-ai
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: FORGEFOCUS_HOSTED
+        value: "1"
+      - key: GOOGLE_CLIENT_ID
+        value: 7927957089-n1672jbnau9spikovvhq5iojdnu8gq77.apps.googleusercontent.com

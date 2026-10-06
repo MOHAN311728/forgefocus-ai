@@ -1,0 +1,8 @@
+.git
+.DS_Store
+*.txt
+*.tsv
+*-server
+forgefocus-ai-server
+focusforge-server
+memory-leak-server

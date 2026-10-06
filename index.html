@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f6f1">
+  <title>ForgeFocus AI — Syllabus to Classroom</title><link rel="stylesheet" href="style.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <div id="login-screen" class="login-screen">
+    <div class="login-brand"><span class="brand-mark">F</span><span>ForgeFocus <b>AI</b></span></div>
+    <div class="login-card"><p class="eyebrow">FACULTY WORKSPACE</p><h1>Turn any syllabus<br>into a <em>teachable course.</em></h1><p class="login-copy">Upload the syllabus PDF. ForgeFocus AI maps the units and helps you prepare lessons, examples, questions, and explanations.</p><div id="google-button"></div><p id="login-message" class="subtle" aria-live="polite">Sign in with your Google account to open your workspace.</p></div>
+    <p class="login-foot">YOUR SYLLABUS · YOUR TEACHING WORKSPACE</p>
+  </div>
+
+  <div id="app" class="app" hidden>
+    <aside class="sidebar">
+      <a class="sidebar-brand" href="#"><span class="brand-mark">F</span><span>ForgeFocus <b>AI</b></span></a>
+      <p class="nav-label">WORKSPACE</p><button class="nav-item active" data-view="studio"><span>▤</span> Syllabus studio</button><button class="nav-item" data-view="courses"><span>▣</span> My courses</button>
+      <div class="sidebar-course"><p class="nav-label">CURRENT COURSE</p><div id="sidebar-course-title" class="course-placeholder">Upload a syllabus<br>to get started</div></div>
+      <div class="sidebar-bottom"><span class="avatar" id="avatar">F</span><div class="user-label"><b id="faculty-name">Faculty</b><small>FACULTY ACCOUNT</small></div><button id="sign-out" class="icon-button" title="Sign out">↪</button></div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar"><div><span class="breadcrumb">WORKSPACE</span><span class="crumb-divider">/</span><strong id="page-title">Syllabus studio</strong></div><div class="top-actions"><span id="server-status" class="connection"><i></i> C++ ENGINE</span><button id="settings-open" class="outline-button">AI PROVIDERS</button></div></header>
+      <section class="welcome"><div><p class="eyebrow">SYLLABUS TO CLASSROOM</p><h1>Teach a new subject<br>with <em>confidence.</em></h1><p>Let AI read the syllabus, map every unit, and help you teach it step by step.</p></div><div class="welcome-art"><span>✳</span><small>YOUR TEACHING<br>CO-PILOT</small></div></section>
+
+      <section id="upload-section" class="upload-section card">
+        <div class="section-heading"><div><p class="eyebrow">STEP 01</p><h2>Start with your syllabus</h2></div><span class="file-badge">PDF · MAX 20 MB</span></div>
+        <div class="upload-grid"><label id="drop-zone" class="drop-zone" for="syllabus-file"><input id="syllabus-file" type="file" accept="application/pdf,.pdf" hidden><span class="upload-icon">↑</span><strong id="file-label">Drop the syllabus PDF here</strong><span id="file-subtitle">or <u>browse files</u> from your device</span><small>Text-based PDF works best. Scanned image PDFs need OCR.</small></label>
+          <div class="course-fields"><label for="course-name">SUBJECT / COURSE NAME</label><input id="course-name" placeholder="e.g. Software Engineering"><label for="provider-select">AI TEACHING MODEL</label><select id="provider-select"><option value="gemini">Gemini</option><option value="openai">ChatGPT</option><option value="anthropic">Claude</option><option value="perplexity">Perplexity</option></select><div id="provider-hint" class="provider-hint">Checking AI provider setup…</div><button id="analyze-button" class="primary-button" disabled>Analyze syllabus <span>→</span></button></div>
+        </div>
+        <p id="upload-message" class="status-message" aria-live="polite"></p>
+      </section>
+
+      <section id="course-workspace" class="course-workspace" hidden>
+        <div class="workspace-title"><div><p class="eyebrow">STEP 02 · AI COURSE MAP</p><h2 id="course-heading">Software Engineering</h2><p id="analysis-summary">Review the syllabus units, then open a unit to prepare a lesson.</p></div><button id="replace-syllabus" class="outline-button">CHANGE PDF</button></div>
+        <div class="learning-layout"><section class="units-column card"><div class="panel-heading"><div><span class="eyebrow">SYLLABUS BREAKDOWN</span><h3>Course units</h3></div><span id="unit-count" class="count-badge">0 UNITS</span></div><div id="units-list" class="units-list"><div class="empty-state">Upload a syllabus and analyze it to see its units here.</div></div></section>
+          <section class="lesson-column card"><div class="panel-heading"><div><span class="eyebrow">TEACHING DESK</span><h3 id="lesson-title">Your lesson workspace</h3></div><span id="lesson-provider" class="provider-chip">AI READY</span></div><div id="lesson-output" class="lesson-output"><div class="lesson-empty"><span>✦</span><h3>Choose a unit to begin</h3><p>ForgeFocus AI can prepare a lesson outline, simple explanation, real-world example, and quick check questions.</p></div></div><div class="ask-box"><label for="question-input">ASK A QUESTION ABOUT THIS SYLLABUS</label><div class="ask-row"><input id="question-input" placeholder="e.g. Explain cohesion vs coupling simply…"><button id="ask-button" class="ask-button" disabled>ASK <span>→</span></button></div></div></section></div>
+      </section>
+      <section id="course-library" class="course-library" hidden><div class="workspace-title"><div><p class="eyebrow">FACULTY LIBRARY</p><h2>My courses</h2><p>Continue preparing any syllabus saved to this browser.</p></div><button id="new-course" class="primary-button">Upload a syllabus <span>→</span></button></div><div id="course-list" class="course-list"></div></section>
+      <section id="course-empty" class="course-empty"><div class="empty-symbol">✳</div><h2>Your courses will appear here</h2><p>Each Google account keeps its own course workspace on this device.</p></section>
+      <footer>FORGEFOCUS AI <span>·</span> PLAN CLEARLY. TEACH WITH CONFIDENCE.</footer>
+    </main>
+  </div>
+
+  <dialog id="settings-dialog" class="settings-dialog"><form id="settings-form"><button type="button" id="settings-close" class="dialog-close">×</button><p class="eyebrow">LOCAL AI CONFIGURATION</p><h2>Connect your AI providers</h2><p class="settings-copy">Each provider needs its own API key. Keys are sent only to your local C++ server and saved on this computer.</p><label for="key-openai">OPENAI / CHATGPT API KEY</label><input id="key-openai" type="password" placeholder="sk-…" autocomplete="off"><label for="key-gemini">GOOGLE GEMINI API KEY</label><input id="key-gemini" type="password" placeholder="AIza…" autocomplete="off"><label for="key-anthropic">ANTHROPIC / CLAUDE API KEY</label><input id="key-anthropic" type="password" placeholder="sk-ant-…" autocomplete="off"><label for="key-perplexity">PERPLEXITY API KEY</label><input id="key-perplexity" type="password" placeholder="pplx-…" autocomplete="off"><p class="settings-warning">Keys are not displayed again after saving. Create them in each provider's developer console; a Google sign-in alone does not include API access.</p><div id="settings-message" class="status-message"></div><button class="primary-button" type="submit">Save provider keys <span>→</span></button></form></dialog>
+  <script src="config.js"></script><script src="app.js"></script>
+</body></html>
