@@ -19,7 +19,17 @@ async function getProviders(){
 function updateAnalyzeButton(){
   const ready=!!syllabusText&&!!$('#course-name').value.trim()&&!!providerReady[$('#provider-select').value];
   $('#analyze-button').disabled=!ready;
-  $('#ask-button').disabled=!selectedUnit||!$('#question-input').value.trim();
+  $('#ask-button').disabled=!syllabusText||!$('#question-input').value.trim()||!providerReady[$('#provider-select').value];
+  const askStatus=$('#ask-status');
+  if(askStatus&&!$('#ask-button').dataset.busy){
+    if(!providerReady[$('#provider-select').value]){
+      askStatus.textContent='This AI provider is not connected yet. Ask the project owner to add its API key in Render.';
+      askStatus.dataset.state='error';
+    }else if(!['result','error'].includes(askStatus.dataset.state)){
+      askStatus.textContent='Answers are based on the uploaded syllabus.';
+      askStatus.dataset.state='hint';
+    }
+  }
 }
 function showWorkspace(){loginScreen.hidden=true;app.hidden=false;$('#faculty-name').textContent=faculty.name;$('#avatar').textContent=(faculty.name||'F').trim().charAt(0).toUpperCase();$('#course-empty').hidden=false;getProviders();restoreCourse();renderCourseLibrary();}
 function parseCredential(response){
@@ -117,13 +127,21 @@ function showText(text,provider){
 }
 async function callTutor(type,fields){
   const button=type==='ask'?$('#ask-button'):$('#analyze-button');button.disabled=true;button.dataset.busy='1';
+  if(type==='ask'){
+    $('#lesson-title').textContent='Syllabus question';
+    showText('Reading the syllabus and preparing your answer…',$('#provider-select').selectedOptions[0].textContent);
+    $('#ask-status').textContent='Working from the uploaded syllabus…';$('#ask-status').dataset.state='busy';
+  }
   try{const result=await api(type,{provider:$('#provider-select').value,course:currentCourse,syllabus:syllabusText,...fields});
     if(type==='analyze'){
       const parsed=extractJson(result.text);currentCourse=$('#course-name').value.trim();renderUnits(parsed);persistCourse(parsed);showText(parsed.course_summary||'Course map generated. Select a unit to create a lesson.',result.provider);
     }else if(type==='teach'){showText(result.text,result.provider);$('#lesson-title').textContent=fields.unitTitle||'Lesson notes';}
-    else {showText(result.text,result.provider);$('#lesson-title').textContent='Syllabus question';}
+    else {showText(result.text,result.provider);$('#lesson-title').textContent='Syllabus question';$('#question-input').value='';$('#ask-status').textContent='Answer prepared from the uploaded syllabus.';$('#ask-status').dataset.state='result';}
     $('#upload-message').textContent=type==='analyze'?'Syllabus analysis complete. Review each unit and select Prepare this lesson.':'AI teaching material is ready.';
-  }catch(error){$('#upload-message').textContent=error.message;}
+  }catch(error){
+    if(type==='ask'){showText(`I couldn’t get an answer. ${error.message}`,'Needs attention');$('#lesson-title').textContent='Syllabus question';$('#ask-status').textContent='Please check the answer panel and try again.';$('#ask-status').dataset.state='error';}
+    $('#upload-message').textContent=error.message;
+  }
   finally{delete button.dataset.busy;updateAnalyzeButton();}
 }
 $('#analyze-button').addEventListener('click',()=>{currentCourse=$('#course-name').value.trim();callTutor('analyze',{});});
@@ -132,7 +150,8 @@ async function teachUnit(index){
   $('#lesson-title').textContent=selectedUnit.title||`Unit ${index+1}`;$('#ask-button').disabled=!$('#question-input').value.trim();
   await callTutor('teach',{unitTitle:selectedUnit.title||`Unit ${index+1}`,topics:JSON.stringify(selectedUnit.topics||[])});
 }
-$('#ask-button').addEventListener('click',()=>{const question=$('#question-input').value.trim();if(question&&selectedUnit)callTutor('ask',{unitTitle:selectedUnit.title||'',question});});
+$('#ask-button').addEventListener('click',()=>{const question=$('#question-input').value.trim();if(question&&syllabusText)callTutor('ask',{unitTitle:selectedUnit?.title||'',question});});
+$('#question-input').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#ask-button').disabled){event.preventDefault();$('#ask-button').click();}});
 
 $('#settings-form').addEventListener('submit',async e=>{
   e.preventDefault();const values={openai:$('#key-openai').value.trim(),gemini:$('#key-gemini').value.trim(),anthropic:$('#key-anthropic').value.trim(),perplexity:$('#key-perplexity').value.trim()};

@@ -425,7 +425,7 @@ bool verifyGoogleIdToken(const std::string& token) {
 
 struct AiCall { bool ready; std::string message; std::string provider; };
 
-AiCall askProvider(const std::string& provider, const std::string& prompt) {
+AiCall askProvider(const std::string& provider, const std::string& prompt, const std::string& type) {
     const auto keys = loadAiKeys();
     const std::map<std::string, std::string> envNames{
         {"openai", "OPENAI_API_KEY"}, {"gemini", "GEMINI_API_KEY"},
@@ -443,18 +443,18 @@ AiCall askProvider(const std::string& provider, const std::string& prompt) {
         model = fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.8-flash");
         endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
         headers.push_back("x-goog-api-key: " + key);
-        request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":5000}}";
+        request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "2600" : "5000") + "}}";
     } else if (provider == "anthropic") {
         model = fileSetting("FORGEFOCUS_CLAUDE_MODEL", "claude-sonnet-5");
         endpoint = "https://api.anthropic.com/v1/messages";
         headers.push_back("x-api-key: " + key);
         headers.push_back("anthropic-version: 2023-06-01");
-        request = "{\"model\":\"" + jsonEscape(model) + "\",\"max_tokens\":5000,\"messages\":[{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}]}";
+        request = "{\"model\":\"" + jsonEscape(model) + "\",\"max_tokens\":" + (type == "ask" ? "2600" : "5000") + ",\"messages\":[{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}]}";
     } else {
         model = provider == "openai" ? fileSetting("FORGEFOCUS_OPENAI_MODEL", "gpt-4.1-mini") : fileSetting("FORGEFOCUS_PERPLEXITY_MODEL", "sonar");
         endpoint = provider == "openai" ? "https://api.openai.com/v1/chat/completions" : "https://api.perplexity.ai/chat/completions";
         headers.push_back("Authorization: Bearer " + key);
-        request = "{\"model\":\"" + jsonEscape(model) + "\",\"messages\":[{\"role\":\"system\",\"content\":\"You are ForgeFocus AI, a careful syllabus-based teaching assistant.\"},{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}],\"temperature\":0.2,\"max_tokens\":5000}";
+        request = "{\"model\":\"" + jsonEscape(model) + "\",\"messages\":[{\"role\":\"system\",\"content\":\"You are ForgeFocus AI, a careful syllabus-based teaching assistant.\"},{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}],\"temperature\":0.2,\"max_tokens\":" + (type == "ask" ? "2600" : "5000") + "}";
     }
     int status = -1;
     const std::string response = runCurl(endpoint, key, headers, request, status);
@@ -498,9 +498,13 @@ std::string aiPrompt(const std::string& type, const std::map<std::string, std::s
                "Keep facts tied to the syllabus and label any useful background as extra context. SYLLABUS:\n" + syllabus;
     }
     const auto question = fields.count("question") ? fields.at("question") : "";
-    return "You are ForgeFocus AI, a helpful teaching assistant for course " + course + ". Answer the faculty member's question using the syllabus first. "
-           "If the syllabus does not say, make that clear and separate general explanation from syllabus facts. Give an example when useful. Active unit: " + unit +
-           "\nQUESTION: " + question + "\nSYLLABUS:\n" + syllabus;
+        return "You are ForgeFocus AI, a precise and concise college teaching assistant for course " + course + ". "
+               "Treat requests for test, quiz, or exam questions as a request to CREATE them, including informal wording such as 'give me 10 test questions from the syllabus'. "
+               "Return exactly the requested number; if no number is stated, create 10. Put the numbered questions first, followed by an Answer key with a brief, clear answer for every question. "
+               "If no specific unit is named, balance questions across the syllabus units. If an active unit is named, focus on that unit. "
+               "Use only facts and topics supported by the syllabus. Do not invent syllabus details; if a requested answer is not stated there, say so in the answer key. "
+               "For ordinary questions, answer directly in a few clear paragraphs and distinguish syllabus facts from extra context. Active unit (optional): " + (unit.empty() ? "none" : unit) +
+               "\nFACULTY REQUEST: " + question + "\nSYLLABUS (source of truth):\n" + syllabus;
 }
 
 Response handleRequest(const std::string& method, const std::string& rawPath, const std::string& body,
@@ -576,7 +580,7 @@ Response handleRequest(const std::string& method, const std::string& rawPath, co
             return {400, "Bad Request", "application/json", "{\"error\":\"Choose a course unit to prepare\"}"};
         if (type == "ask" && (!fields.count("question") || fields.at("question").empty() || fields.at("question").size() > 2500))
             return {400, "Bad Request", "application/json", "{\"error\":\"Enter a question up to 2500 characters\"}"};
-        auto result = askProvider(provider, aiPrompt(type, fields));
+        auto result = askProvider(provider, aiPrompt(type, fields), type);
         if (!result.ready)
             return {502, "Bad Gateway", "application/json; charset=utf-8", "{\"error\":\"" + jsonEscape(result.message) + "\"}"};
         const std::string name = provider == "openai" ? "ChatGPT" : provider == "gemini" ? "Gemini" : provider == "anthropic" ? "Claude" : "Perplexity";
