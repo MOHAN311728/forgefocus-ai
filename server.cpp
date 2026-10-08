@@ -443,18 +443,18 @@ AiCall askProvider(const std::string& provider, const std::string& prompt, const
         model = fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.8-flash");
         endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
         headers.push_back("x-goog-api-key: " + key);
-        request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "2600" : "5000") + "}}";
+        request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "4000" : "5000") + "}}";
     } else if (provider == "anthropic") {
         model = fileSetting("FORGEFOCUS_CLAUDE_MODEL", "claude-sonnet-5");
         endpoint = "https://api.anthropic.com/v1/messages";
         headers.push_back("x-api-key: " + key);
         headers.push_back("anthropic-version: 2023-06-01");
-        request = "{\"model\":\"" + jsonEscape(model) + "\",\"max_tokens\":" + (type == "ask" ? "2600" : "5000") + ",\"messages\":[{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}]}";
+        request = "{\"model\":\"" + jsonEscape(model) + "\",\"max_tokens\":" + (type == "ask" ? "4000" : "5000") + ",\"messages\":[{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}]}";
     } else {
         model = provider == "openai" ? fileSetting("FORGEFOCUS_OPENAI_MODEL", "gpt-4.1-mini") : fileSetting("FORGEFOCUS_PERPLEXITY_MODEL", "sonar");
         endpoint = provider == "openai" ? "https://api.openai.com/v1/chat/completions" : "https://api.perplexity.ai/chat/completions";
         headers.push_back("Authorization: Bearer " + key);
-        request = "{\"model\":\"" + jsonEscape(model) + "\",\"messages\":[{\"role\":\"system\",\"content\":\"You are ForgeFocus AI, a careful syllabus-based teaching assistant.\"},{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}],\"temperature\":0.2,\"max_tokens\":" + (type == "ask" ? "2600" : "5000") + "}";
+        request = "{\"model\":\"" + jsonEscape(model) + "\",\"messages\":[{\"role\":\"system\",\"content\":\"You are ForgeFocus AI, a careful syllabus-based teaching assistant.\"},{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}],\"temperature\":0.2,\"max_tokens\":" + (type == "ask" ? "4000" : "5000") + "}";
     }
     int status = -1;
     const std::string response = runCurl(endpoint, key, headers, request, status);
@@ -500,7 +500,7 @@ std::string aiPrompt(const std::string& type, const std::map<std::string, std::s
     const auto question = fields.count("question") ? fields.at("question") : "";
     return "You are ForgeFocus AI, a precise college teaching assistant for course " + course + ". "
            "First identify what the faculty is asking. If they ask for test, quiz, practice, or exam questions (including informal wording like 'give 10 questions'), generate the questions; do not merely explain how to make them. "
-           "Return exactly the requested count (default 10). Number each question, then provide a matching Answer key with a clear answer for every number. Make a balanced mix of recall, understanding, and application questions when the syllabus supports it. "
+           "Return exactly the requested count (default 10). Do not add a preamble, request summary, or conclusion. Number each question, then provide a matching Answer key with a concise, clear answer for every number. Make a balanced mix of recall, understanding, and application questions when the syllabus supports it. "
            "When an active unit is provided, base the questions on that unit and its listed topics. If the faculty names one specific topic, prioritize that topic within the active unit. If no unit is active, cover the full syllabus and balance across its units. "
            "Treat the uploaded syllabus as the source of truth. Use only its supported content; do not invent units, topic details, or facts. If the PDF text does not contain enough information for the requested count, say what is missing instead of padding with guesses. "
            "For non-question-generation requests, answer directly and concisely from the syllabus, clearly marking any extra context. "
