@@ -498,13 +498,14 @@ std::string aiPrompt(const std::string& type, const std::map<std::string, std::s
                "Keep facts tied to the syllabus and label any useful background as extra context. SYLLABUS:\n" + syllabus;
     }
     const auto question = fields.count("question") ? fields.at("question") : "";
-        return "You are ForgeFocus AI, a precise and concise college teaching assistant for course " + course + ". "
-               "Treat requests for test, quiz, or exam questions as a request to CREATE them, including informal wording such as 'give me 10 test questions from the syllabus'. "
-               "Return exactly the requested number; if no number is stated, create 10. Put the numbered questions first, followed by an Answer key with a brief, clear answer for every question. "
-               "If no specific unit is named, balance questions across the syllabus units. If an active unit is named, focus on that unit. "
-               "Use only facts and topics supported by the syllabus. Do not invent syllabus details; if a requested answer is not stated there, say so in the answer key. "
-               "For ordinary questions, answer directly in a few clear paragraphs and distinguish syllabus facts from extra context. Active unit (optional): " + (unit.empty() ? "none" : unit) +
-               "\nFACULTY REQUEST: " + question + "\nSYLLABUS (source of truth):\n" + syllabus;
+    return "You are ForgeFocus AI, a precise college teaching assistant for course " + course + ". "
+           "First identify what the faculty is asking. If they ask for test, quiz, practice, or exam questions (including informal wording like 'give 10 questions'), generate the questions; do not merely explain how to make them. "
+           "Return exactly the requested count (default 10). Number each question, then provide a matching Answer key with a clear answer for every number. Make a balanced mix of recall, understanding, and application questions when the syllabus supports it. "
+           "When an active unit is provided, base the questions on that unit and its listed topics. If the faculty names one specific topic, prioritize that topic within the active unit. If no unit is active, cover the full syllabus and balance across its units. "
+           "Treat the uploaded syllabus as the source of truth. Use only its supported content; do not invent units, topic details, or facts. If the PDF text does not contain enough information for the requested count, say what is missing instead of padding with guesses. "
+           "For non-question-generation requests, answer directly and concisely from the syllabus, clearly marking any extra context. "
+           "ACTIVE UNIT: " + (unit.empty() ? "none" : unit) + "\nACTIVE UNIT TOPICS: " + (topics.empty() ? "none" : topics) +
+           "\nFACULTY REQUEST: " + question + "\nSYLLABUS (source of truth):\n" + syllabus;
 }
 
 Response handleRequest(const std::string& method, const std::string& rawPath, const std::string& body,

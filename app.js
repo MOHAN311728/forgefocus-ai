@@ -26,7 +26,7 @@ function updateAnalyzeButton(){
       askStatus.textContent='This AI provider is not connected yet. Ask the project owner to add its API key in Render.';
       askStatus.dataset.state='error';
     }else if(!['result','error'].includes(askStatus.dataset.state)){
-      askStatus.textContent='Answers are based on the uploaded syllabus.';
+      askStatus.textContent=selectedUnit?`Answers use ${selectedUnit.title||'the selected unit'} and its syllabus topics.`:'Answers are based on the uploaded syllabus.';
       askStatus.dataset.state='hint';
     }
   }
@@ -90,13 +90,14 @@ function extractJson(text){
   return JSON.parse(clean.slice(first,last+1));
 }
 function renderUnits(parsed){
-  units=Array.isArray(parsed.units)?parsed.units:[];$('#course-heading').textContent=parsed.course_title||currentCourse;$('#analysis-summary').textContent=parsed.course_summary||`${units.length} syllabus units identified. Select a unit to prepare teaching material.`;$('#unit-count').textContent=`${units.length} UNIT${units.length===1?'':'S'}`;$('#sidebar-course-title').textContent=parsed.course_title||currentCourse;
+  units=Array.isArray(parsed.units)?parsed.units:[];selectedUnit=null;$('#course-heading').textContent=parsed.course_title||currentCourse;$('#analysis-summary').textContent=parsed.course_summary||`${units.length} syllabus units identified. Select a unit to prepare teaching material.`;$('#unit-count').textContent=`${units.length} UNIT${units.length===1?'':'S'}`;$('#sidebar-course-title').textContent=parsed.course_title||currentCourse;
   const list=$('#units-list');list.replaceChildren();
   units.forEach((unit,index)=>{
     const card=document.createElement('article');card.className='unit-card';
     const top=document.createElement('div');top.className='unit-top';const title=document.createElement('span');title.className='unit-title';title.textContent=unit.title||`Unit ${index+1}`;const meta=document.createElement('span');meta.className='unit-meta';meta.textContent=`UNIT ${String(index+1).padStart(2,'0')}`;top.append(title,meta);
     const topics=document.createElement('p');topics.className='unit-topics';topics.textContent=(Array.isArray(unit.topics)?unit.topics:[]).join(' · ')||unit.description||'Topics identified from your uploaded syllabus.';
-    const teach=document.createElement('button');teach.type='button';teach.className='teach-button';teach.textContent='Prepare this lesson →';teach.addEventListener('click',()=>teachUnit(index));card.append(top,topics,teach);list.append(card);
+    const teach=document.createElement('button');teach.type='button';teach.className='teach-button';teach.textContent='Prepare this lesson →';teach.addEventListener('click',()=>teachUnit(index));
+    card.addEventListener('click',()=>selectUnit(index));card.append(top,topics,teach);list.append(card);
   });
   $('#course-workspace').hidden=false;$('#course-empty').hidden=true;
 }
@@ -146,11 +147,17 @@ async function callTutor(type,fields){
 }
 $('#analyze-button').addEventListener('click',()=>{currentCourse=$('#course-name').value.trim();callTutor('analyze',{});});
 async function teachUnit(index){
-  selectedUnit=units[index];document.querySelectorAll('.unit-card').forEach((el,i)=>el.classList.toggle('selected',i===index));
-  $('#lesson-title').textContent=selectedUnit.title||`Unit ${index+1}`;$('#ask-button').disabled=!$('#question-input').value.trim();
+  selectUnit(index);
+  $('#lesson-title').textContent=selectedUnit.title||`Unit ${index+1}`;
   await callTutor('teach',{unitTitle:selectedUnit.title||`Unit ${index+1}`,topics:JSON.stringify(selectedUnit.topics||[])});
 }
-$('#ask-button').addEventListener('click',()=>{const question=$('#question-input').value.trim();if(question&&syllabusText)callTutor('ask',{unitTitle:selectedUnit?.title||'',question});});
+function selectUnit(index){
+  selectedUnit=units[index];if(!selectedUnit)return;
+  document.querySelectorAll('.unit-card').forEach((el,i)=>el.classList.toggle('selected',i===index));
+  $('#ask-status').textContent=`Questions will focus on ${selectedUnit.title||`Unit ${index+1}`} and its listed syllabus topics.`;
+  $('#ask-status').dataset.state='hint';updateAnalyzeButton();
+}
+$('#ask-button').addEventListener('click',()=>{const question=$('#question-input').value.trim();if(question&&syllabusText)callTutor('ask',{unitTitle:selectedUnit?.title||'',topics:JSON.stringify(selectedUnit?.topics||[]),question});});
 $('#question-input').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#ask-button').disabled){event.preventDefault();$('#ask-button').click();}});
 
 $('#settings-form').addEventListener('submit',async e=>{
