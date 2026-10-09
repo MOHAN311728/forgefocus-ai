@@ -12,18 +12,19 @@ async function api(path,fields={}){
   const data=await response.json();if(!response.ok)throw new Error(data.error||'The request failed.');return data;
 }
 async function getProviders(){
-  try{providerReady=await (await fetch(`${API}/providers`,{headers:authHeaders()})).json();$('#server-status').classList.add('online');$('#provider-hint').textContent=providerReady[$('#provider-select').value]?(window.FORGEFOCUS_CONFIG?.hosted?'AI provider connected.':'API key configured on this device.'):(window.FORGEFOCUS_CONFIG?.hosted?'Ask the project owner to connect an AI provider.':'Add this provider\'s API key in AI PROVIDERS.');}
+  try{providerReady=await (await fetch(`${API}/providers`,{headers:authHeaders()})).json();$('#server-status').classList.add('online');const selected=$('#provider-select').value,other=selected==='openai'?'gemini':'openai';const names={openai:'ChatGPT',gemini:'Gemini'};$('#provider-hint').textContent=providerReady[selected]?`${names[selected]} is connected. ForgeFocus will try ${names[other]} if needed.`:providerReady[other]?`${names[selected]} is not connected. ForgeFocus will use ${names[other]}.`:'Connect Gemini or ChatGPT to use AI teaching.';}
   catch{providerReady={};$('#server-status').classList.remove('online');$('#provider-hint').textContent='Start the C++ server to connect AI providers.';}
   updateAnalyzeButton();
 }
 function updateAnalyzeButton(){
-  const ready=!!syllabusText&&!!$('#course-name').value.trim()&&!!providerReady[$('#provider-select').value];
+  const hasProvider=!!(providerReady.gemini||providerReady.openai);
+  const ready=!!syllabusText&&!!$('#course-name').value.trim()&&hasProvider;
   $('#analyze-button').disabled=!ready;
-  $('#ask-button').disabled=!syllabusText||!$('#question-input').value.trim()||!providerReady[$('#provider-select').value];
+  $('#ask-button').disabled=!syllabusText||!$('#question-input').value.trim()||!hasProvider;
   const askStatus=$('#ask-status');
   if(askStatus&&!$('#ask-button').dataset.busy){
-    if(!providerReady[$('#provider-select').value]){
-      askStatus.textContent='This AI provider is not connected yet. Ask the project owner to add its API key in Render.';
+    if(!hasProvider){
+      askStatus.textContent='Connect a Gemini or ChatGPT API key in Render to get syllabus answers.';
       askStatus.dataset.state='error';
     }else if(!['result','error'].includes(askStatus.dataset.state)){
       askStatus.textContent=selectedUnit?`Answers use ${selectedUnit.title||'the selected unit'} and its syllabus topics.`:'Answers are based on the uploaded syllabus.';
@@ -137,8 +138,8 @@ async function callTutor(type,fields){
     if(type==='analyze'){
       const parsed=extractJson(result.text);currentCourse=$('#course-name').value.trim();renderUnits(parsed);persistCourse(parsed);showText(parsed.course_summary||'Course map generated. Select a unit to create a lesson.',result.provider);
     }else if(type==='teach'){showText(result.text,result.provider);$('#lesson-title').textContent=fields.unitTitle||'Lesson notes';}
-    else {showText(result.text,result.provider);$('#lesson-title').textContent='Syllabus question';$('#question-input').value='';$('#ask-status').textContent='Answer prepared from the uploaded syllabus.';$('#ask-status').dataset.state='result';}
-    $('#upload-message').textContent=type==='analyze'?'Syllabus analysis complete. Review each unit and select Prepare this lesson.':'AI teaching material is ready.';
+    else {showText(result.text,result.provider);$('#lesson-title').textContent='Syllabus question';$('#question-input').value='';$('#ask-status').textContent=result.notice||'Answer prepared from the uploaded syllabus.';$('#ask-status').dataset.state='result';}
+    $('#upload-message').textContent=result.notice|| (type==='analyze'?'Syllabus analysis complete. Review each unit and select Prepare this lesson.':'AI teaching material is ready.');
   }catch(error){
     if(type==='ask'){showText(`I couldn’t get an answer. ${error.message}`,'Needs attention');$('#lesson-title').textContent='Syllabus question';$('#ask-status').textContent='Please check the answer panel and try again.';$('#ask-status').dataset.state='error';}
     $('#upload-message').textContent=error.message;
@@ -161,7 +162,7 @@ $('#ask-button').addEventListener('click',()=>{const question=$('#question-input
 $('#question-input').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#ask-button').disabled){event.preventDefault();$('#ask-button').click();}});
 
 $('#settings-form').addEventListener('submit',async e=>{
-  e.preventDefault();const values={openai:$('#key-openai').value.trim(),gemini:$('#key-gemini').value.trim(),anthropic:$('#key-anthropic').value.trim(),perplexity:$('#key-perplexity').value.trim()};
+  e.preventDefault();const values={openai:$('#key-openai').value.trim(),gemini:$('#key-gemini').value.trim()};
   if(!Object.values(values).some(Boolean)){$('#settings-message').textContent='Enter at least one new API key before saving.';return;}
   const submit=e.submitter;submit.disabled=true;$('#settings-message').textContent='Saving keys on this device…';
   try{await api('keys',values);$('#settings-message').textContent='Saved. Keys are hidden after saving.';e.target.reset();await getProviders();setTimeout(()=>$('#settings-dialog').close(),700);}
