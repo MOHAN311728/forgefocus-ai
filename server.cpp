@@ -250,7 +250,10 @@ std::map<std::string, std::string> loadAiKeys() {
     std::string line;
     while (std::getline(file, line)) {
         const auto split = line.find('=');
-        if (split != std::string::npos) keys[line.substr(0, split)] = urlDecode(line.substr(split + 1));
+        if (split != std::string::npos) {
+            const auto name = line.substr(0, split);
+            if (name == "openai" || name == "gemini") keys[name] = urlDecode(line.substr(split + 1));
+        }
     }
     return keys;
 }
@@ -261,7 +264,10 @@ bool saveAiKeys(const std::map<std::string, std::string>& keys) {
     const int fd = open(AI_KEYS_FILE.c_str(), O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
     if (fd < 0) return false;
     std::string content;
-    for (const auto& [name, key] : keys) content += name + '=' + urlEncode(key) + '\n';
+    for (const auto& name : {std::string("openai"), std::string("gemini")}) {
+        const auto it = keys.find(name);
+        if (it != keys.end()) content += name + '=' + urlEncode(it->second) + '\n';
+    }
     const bool saved = writeAllToFd(fd, content) && fchmod(fd, S_IRUSR | S_IWUSR) == 0;
     close(fd);
     return saved;
@@ -307,7 +313,7 @@ std::string runCurl(const std::string& endpoint, const std::string& apiKey,
     int configFd = mkstemp(configPath);
     if (configFd < 0) { unlink(bodyPath); exitCode = -1; return "Could not create a private AI connection file."; }
     fchmod(configFd, S_IRUSR | S_IWUSR);
-    std::string config = "silent\nshow-error\nmax-time = 90\nconnect-timeout = 15\nretry = 2\nretry-delay = 1\nretry-max-time = 12\nfail-with-body\n";
+    std::string config = "silent\nshow-error\nmax-time = 75\nconnect-timeout = 12\nretry = 1\nretry-delay = 1\nretry-max-time = 5\nfail-with-body\n";
     config += "url = " + curlConfigQuote(endpoint) + "\n";
     for (const auto& header : headers) config += "header = " + curlConfigQuote(header) + "\n";
     if (!body.empty()) config += "data-binary = " + curlConfigQuote("@" + std::string(bodyPath)) + "\n";
@@ -423,19 +429,35 @@ bool verifyGoogleIdToken(const std::string& token) {
            !jsonStringField(response, "sub").empty();
 }
 
-struct AiCall { bool ready; std::string message; std::string provider; };
+struct AiCall {
+    bool ready{false};
+    std::string message;
+    std::string provider;
+    std::string notice;
+    bool fallbackEligible{false};
+};
 
-AiCall askProvider(const std::string& provider, const std::string& prompt, const std::string& type) {
-    const auto keys = loadAiKeys();
-    const std::map<std::string, std::string> envNames{
-        {"openai", "OPENAI_API_KEY"}, {"gemini", "GEMINI_API_KEY"},
-        {"anthropic", "ANTHROPIC_API_KEY"}, {"perplexity", "PERPLEXITY_API_KEY"}
-    };
-    if (!envNames.count(provider)) return {false, "Choose one of the supported AI providers.", ""};
-    const char* envKey = std::getenv(envNames.at(provider).c_str());
+std::string providerKey(const std::string& provider) {
+    if (provider == "openai") return "OPENAI_API_KEY";
+    if (provider == "gemini") return "GEMINI_API_KEY";
+    return "";
+}
+
+std::string configuredProviderKey(const std::string& provider, const std::map<std::string, std::string>& keys) {
+    const auto envName = providerKey(provider);
+    if (envName.empty()) return "";
+    const char* env = std::getenv(envName.c_str());
     const auto stored = keys.find(provider);
-    const std::string key = envKey && *envKey ? envKey : (stored == keys.end() ? "" : stored->second);
-    if (key.empty()) return {false, "Add this provider's API key in AI PROVIDERS first.", ""};
+    return env && *env ? env : (stored == keys.end() ? "" : stored->second);
+}
+
+AiCall askProviderOnce(const std::string& provider, const std::string& prompt, const std::string& type,
+                       const std::map<std::string, std::string>& keys) {
+    if (provider != "openai" && provider != "gemini")
+        return {false, "Choose Gemini or ChatGPT.", ""};
+    const std::string key = configuredProviderKey(provider, keys);
+    if (key.empty())
+        return {false, "This provider is not connected. Add its API key in Render Environment.", "", "", true};
 
     std::string model, endpoint, request;
     std::vector<std::string> headers{"Content-Type: application/json"};
@@ -444,15 +466,9 @@ AiCall askProvider(const std::string& provider, const std::string& prompt, const
         endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
         headers.push_back("x-goog-api-key: " + key);
         request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "4000" : "5000") + "}}";
-    } else if (provider == "anthropic") {
-        model = fileSetting("FORGEFOCUS_CLAUDE_MODEL", "claude-sonnet-5");
-        endpoint = "https://api.anthropic.com/v1/messages";
-        headers.push_back("x-api-key: " + key);
-        headers.push_back("anthropic-version: 2023-06-01");
-        request = "{\"model\":\"" + jsonEscape(model) + "\",\"max_tokens\":" + (type == "ask" ? "4000" : "5000") + ",\"messages\":[{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}]}";
     } else {
-        model = provider == "openai" ? fileSetting("FORGEFOCUS_OPENAI_MODEL", "gpt-4.1-mini") : fileSetting("FORGEFOCUS_PERPLEXITY_MODEL", "sonar");
-        endpoint = provider == "openai" ? "https://api.openai.com/v1/chat/completions" : "https://api.perplexity.ai/chat/completions";
+        model = fileSetting("FORGEFOCUS_OPENAI_MODEL", "gpt-4.1-mini");
+        endpoint = "https://api.openai.com/v1/chat/completions";
         headers.push_back("Authorization: Bearer " + key);
         request = "{\"model\":\"" + jsonEscape(model) + "\",\"messages\":[{\"role\":\"system\",\"content\":\"You are ForgeFocus AI, a careful syllabus-based teaching assistant.\"},{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}],\"temperature\":0.2,\"max_tokens\":" + (type == "ask" ? "4000" : "5000") + "}";
     }
@@ -460,30 +476,66 @@ AiCall askProvider(const std::string& provider, const std::string& prompt, const
     const std::string response = runCurl(endpoint, key, headers, request, status);
     if (status != 0) {
         const auto detail = jsonStringField(response, "message");
-        if (!detail.empty()) return {false, detail, ""};
-        if (response.find("429") != std::string::npos || response.find("RESOURCE_EXHAUSTED") != std::string::npos)
-            return {false, "The AI provider quota or rate limit was reached. Check its billing and usage limits, or try again later.", ""};
+        std::string lower = response + " " + detail;
+        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        const bool quotaOrTemporary = lower.find("429") != std::string::npos ||
+            lower.find("quota") != std::string::npos || lower.find("resource_exhausted") != std::string::npos ||
+            lower.find("no credits") != std::string::npos || lower.find("insufficient_quota") != std::string::npos ||
+            lower.find("billing_hard_limit") != std::string::npos || lower.find("rate limit") != std::string::npos ||
+            lower.find("rate_limit") != std::string::npos || lower.find("500") != std::string::npos ||
+            lower.find("502") != std::string::npos || lower.find("503") != std::string::npos ||
+            lower.find("504") != std::string::npos || lower.find("(28)") != std::string::npos ||
+            lower.find("timed out") != std::string::npos || lower.find("could not resolve") != std::string::npos;
+        if (!detail.empty()) return {false, detail, "", "", quotaOrTemporary};
+        if (quotaOrTemporary)
+            return {false, "The provider has no available credits, reached its quota, or is temporarily unavailable.", "", "", true};
         if (response.find("401") != std::string::npos || response.find("403") != std::string::npos)
             return {false, "The AI provider rejected its API key or this key does not have access. Check the key in Render Environment.", ""};
         if (response.find("404") != std::string::npos)
             return {false, "The selected AI model is unavailable for this provider account. Check the provider model setting.", ""};
-        if (response.find("(28)") != std::string::npos || response.find("timed out") != std::string::npos || response.find("Could not resolve") != std::string::npos)
-            return {false, "The AI provider connection timed out after retries. Try again; Render’s free server can also take time to wake up.", ""};
         return {false, "The AI provider request failed after retries. Check provider status, API key, and usage quota, then try again.", ""};
     }
-    std::string text = jsonStringField(response, provider == "anthropic" || provider == "gemini" ? "text" : "content");
+    std::string text = jsonStringField(response, provider == "gemini" ? "text" : "content");
     if (text.empty()) return {false, "The provider returned an empty response. Try again or choose another model.", ""};
     return {true, text, provider};
+}
+
+AiCall askProvider(const std::string& provider, const std::string& prompt, const std::string& type) {
+    if (provider != "openai" && provider != "gemini")
+        return {false, "Choose Gemini or ChatGPT.", ""};
+    const auto keys = loadAiKeys();
+    auto result = askProviderOnce(provider, prompt, type, keys);
+    if (result.ready || !result.fallbackEligible) return result;
+
+    const std::string other = provider == "openai" ? "gemini" : "openai";
+    if (configuredProviderKey(other, keys).empty()) {
+        result.message = (provider == "openai" ? "ChatGPT" : "Gemini") +
+            std::string(" is out of API credits or temporarily unavailable. Connect ") +
+            (other == "openai" ? "ChatGPT" : "Gemini") +
+            " in Render Environment to enable automatic fallback.";
+        return result;
+    }
+    auto fallback = askProviderOnce(other, prompt, type, keys);
+    if (!fallback.ready) {
+        fallback.message = "" + std::string(provider == "openai" ? "ChatGPT" : "Gemini") +
+            " could not answer (credits/quota or temporary issue), and " +
+            (other == "openai" ? "ChatGPT" : "Gemini") + " fallback also failed: " + fallback.message;
+        return fallback;
+    }
+    fallback.notice = (provider == "openai" ? "ChatGPT" : "Gemini") +
+        std::string(" was unavailable (often due to credits or quota); answered with ") +
+        (other == "openai" ? "ChatGPT" : "Gemini") + ".";
+    return fallback;
 }
 
 std::string providersJson(const std::map<std::string, std::string>& keys) {
     std::ostringstream out;
     out << '{';
-    const char* names[] = {"openai", "gemini", "anthropic", "perplexity"};
-    for (int i = 0; i < 4; ++i) {
+    const char* names[] = {"openai", "gemini"};
+    for (int i = 0; i < 2; ++i) {
         if (i) out << ',';
-        const char* envNames[] = {"OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "PERPLEXITY_API_KEY"};
-        const char* env = std::getenv(envNames[i]);
+        const std::string envName = providerKey(names[i]);
+        const char* env = std::getenv(envName.c_str());
         const auto it = keys.find(names[i]);
         out << '\"' << names[i] << "\":" << ((env && *env) || (it != keys.end() && !it->second.empty()) ? "true" : "false");
     }
@@ -565,7 +617,7 @@ Response handleRequest(const std::string& method, const std::string& rawPath, co
         auto keys = loadAiKeys();
         const auto fields = parseForm(body);
         bool changed = false;
-        for (const auto& name : {"openai", "gemini", "anthropic", "perplexity"}) {
+        for (const auto& name : {"openai", "gemini"}) {
             const auto it = fields.find(name);
             if (it == fields.end() || it->second.empty()) continue;
             if (it->second.size() > 500) return {400, "Bad Request", "application/json", "{\"error\":\"An API key is too long\"}"};
@@ -593,8 +645,8 @@ Response handleRequest(const std::string& method, const std::string& rawPath, co
         auto result = askProvider(provider, aiPrompt(type, fields), type);
         if (!result.ready)
             return {502, "Bad Gateway", "application/json; charset=utf-8", "{\"error\":\"" + jsonEscape(result.message) + "\"}"};
-        const std::string name = provider == "openai" ? "ChatGPT" : provider == "gemini" ? "Gemini" : provider == "anthropic" ? "Claude" : "Perplexity";
-        return {200, "OK", "application/json; charset=utf-8", "{\"text\":\"" + jsonEscape(result.message) + "\",\"provider\":\"" + name + "\"}"};
+        const std::string name = result.provider == "openai" ? "ChatGPT" : "Gemini";
+        return {200, "OK", "application/json; charset=utf-8", "{\"text\":\"" + jsonEscape(result.message) + "\",\"provider\":\"" + name + "\",\"notice\":\"" + jsonEscape(result.notice) + "\"}"};
     }
     if (method == "GET" && path == "/api/study/state") {
         const auto queryFields = parseForm(query);

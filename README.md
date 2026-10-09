@@ -1,6 +1,6 @@
 # ForgeFocus AI
 
-ForgeFocus AI helps faculty turn a syllabus into a course map, classroom-ready unit lessons, examples, and syllabus-grounded answers. It supports separate Gemini, OpenAI, Claude, and Perplexity API keys.
+ForgeFocus AI helps faculty turn a syllabus into a course map, classroom-ready unit lessons, examples, and syllabus-grounded answers. It supports Gemini and OpenAI API keys, and automatically tries the other connected provider if the selected one has exhausted its quota or is temporarily unavailable.
 
 ## Run locally
 
@@ -17,7 +17,7 @@ The project includes a Dockerfile and Render Blueprint. To publish it, push this
 
 Add any AI provider keys you own in the Render service environment before using AI lessons:
 
-- `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `PERPLEXITY_API_KEY` (at least one).
+- `GEMINI_API_KEY` and/or `OPENAI_API_KEY` (at least one; both are recommended for automatic failover).
 - `FORGEFOCUS_HOSTED=1` is set by the Blueprint.
 
 The Google Client ID is already included in the Blueprint; it is an identifier, not a password.
