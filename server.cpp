@@ -307,7 +307,7 @@ std::string runCurl(const std::string& endpoint, const std::string& apiKey,
     int configFd = mkstemp(configPath);
     if (configFd < 0) { unlink(bodyPath); exitCode = -1; return "Could not create a private AI connection file."; }
     fchmod(configFd, S_IRUSR | S_IWUSR);
-    std::string config = "silent\nshow-error\nmax-time = 90\nconnect-timeout = 15\nfail-with-body\n";
+    std::string config = "silent\nshow-error\nmax-time = 90\nconnect-timeout = 15\nretry = 2\nretry-delay = 1\nretry-max-time = 12\nfail-with-body\n";
     config += "url = " + curlConfigQuote(endpoint) + "\n";
     for (const auto& header : headers) config += "header = " + curlConfigQuote(header) + "\n";
     if (!body.empty()) config += "data-binary = " + curlConfigQuote("@" + std::string(bodyPath)) + "\n";
@@ -460,7 +460,16 @@ AiCall askProvider(const std::string& provider, const std::string& prompt, const
     const std::string response = runCurl(endpoint, key, headers, request, status);
     if (status != 0) {
         const auto detail = jsonStringField(response, "message");
-        return {false, detail.empty() ? "The provider request failed. Check its API key and model access." : detail, ""};
+        if (!detail.empty()) return {false, detail, ""};
+        if (response.find("429") != std::string::npos || response.find("RESOURCE_EXHAUSTED") != std::string::npos)
+            return {false, "The AI provider quota or rate limit was reached. Check its billing and usage limits, or try again later.", ""};
+        if (response.find("401") != std::string::npos || response.find("403") != std::string::npos)
+            return {false, "The AI provider rejected its API key or this key does not have access. Check the key in Render Environment.", ""};
+        if (response.find("404") != std::string::npos)
+            return {false, "The selected AI model is unavailable for this provider account. Check the provider model setting.", ""};
+        if (response.find("(28)") != std::string::npos || response.find("timed out") != std::string::npos || response.find("Could not resolve") != std::string::npos)
+            return {false, "The AI provider connection timed out after retries. Try again; Render’s free server can also take time to wake up.", ""};
+        return {false, "The AI provider request failed after retries. Check provider status, API key, and usage quota, then try again.", ""};
     }
     std::string text = jsonStringField(response, provider == "anthropic" || provider == "gemini" ? "text" : "content");
     if (text.empty()) return {false, "The provider returned an empty response. Try again or choose another model.", ""};
