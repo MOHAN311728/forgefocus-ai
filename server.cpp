@@ -337,7 +337,7 @@ std::string runCurl(const std::string& endpoint, const std::string& apiKey,
     for (;;) {
         const auto count = read(outputPipe[0], buffer, sizeof(buffer));
         if (count <= 0) break;
-        if (output.size() < 2 * 1024 * 1024) output.append(buffer, static_cast<std::size_t>(count));
+        if (output.size() < 12 * 1024 * 1024) output.append(buffer, static_cast<std::size_t>(count));
     }
     close(outputPipe[0]);
     int status = 0;
@@ -453,8 +453,7 @@ std::string configuredProviderKey(const std::string& provider, const std::map<st
 
 AiCall askProviderOnce(const std::string& provider, const std::string& prompt, const std::string& type,
                        const std::map<std::string, std::string>& keys) {
-    if (provider != "openai" && provider != "gemini")
-        return {false, "Choose Gemini or ChatGPT.", ""};
+    if (provider != "openai" && provider != "gemini") return {false, "Choose OpenAI or Gemini.", ""};
     const std::string key = configuredProviderKey(provider, keys);
     if (key.empty())
         return {false, "This provider is not connected. Add its API key in Render Environment.", "", "", true};
@@ -465,12 +464,12 @@ AiCall askProviderOnce(const std::string& provider, const std::string& prompt, c
         model = fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.8-flash");
         endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
         headers.push_back("x-goog-api-key: " + key);
-        request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "4000" : "5000") + "}}";
+        request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "5000" : "6500") + "}}";
     } else {
-        model = fileSetting("FORGEFOCUS_OPENAI_MODEL", "gpt-4.1-mini");
-        endpoint = "https://api.openai.com/v1/chat/completions";
+        model = fileSetting("FORGEFOCUS_OPENAI_MODEL", "gpt-6.1-sol");
+        endpoint = "https://api.openai.com/v1/responses";
         headers.push_back("Authorization: Bearer " + key);
-        request = "{\"model\":\"" + jsonEscape(model) + "\",\"messages\":[{\"role\":\"system\",\"content\":\"You are ForgeFocus AI, a careful syllabus-based teaching assistant.\"},{\"role\":\"user\",\"content\":\"" + jsonEscape(prompt) + "\"}],\"temperature\":0.2,\"max_tokens\":" + (type == "ask" ? "4000" : "5000") + "}";
+        request = "{\"model\":\"" + jsonEscape(model) + "\",\"instructions\":\"You are ForgeFocus AI, a careful and accurate college teaching assistant. Follow the syllabus for course-specific answers and clearly label general background.\",\"input\":\"" + jsonEscape(prompt) + "\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":" + (type == "ask" ? "5000" : "6500") + "}";
     }
     int status = -1;
     const std::string response = runCurl(endpoint, key, headers, request, status);
@@ -490,42 +489,86 @@ AiCall askProviderOnce(const std::string& provider, const std::string& prompt, c
         if (quotaOrTemporary)
             return {false, "The provider has no available credits, reached its quota, or is temporarily unavailable.", "", "", true};
         if (response.find("401") != std::string::npos || response.find("403") != std::string::npos)
-            return {false, "The AI provider rejected its API key or this key does not have access. Check the key in Render Environment.", ""};
+            return {false, "The AI provider rejected its API key or this key does not have access. Check the key in Render Environment.", "", "", true};
         if (response.find("404") != std::string::npos)
-            return {false, "The selected AI model is unavailable for this provider account. Check the provider model setting.", ""};
+            return {false, "The selected AI model is unavailable for this provider account. Check the provider model setting.", "", "", true};
         return {false, "The AI provider request failed after retries. Check provider status, API key, and usage quota, then try again.", ""};
     }
-    std::string text = jsonStringField(response, provider == "gemini" ? "text" : "content");
-    if (text.empty()) return {false, "The provider returned an empty response. Try again or choose another model.", ""};
+    std::string text = provider == "openai" ? jsonStringField(response, "output_text") : "";
+    if (text.empty()) text = jsonStringField(response, "text");
+    if (text.empty()) return {false, "The AI provider returned an empty response.", "", "", true};
     return {true, text, provider};
 }
 
-AiCall askProvider(const std::string& provider, const std::string& prompt, const std::string& type) {
-    if (provider != "openai" && provider != "gemini")
-        return {false, "Choose Gemini or ChatGPT.", ""};
+AiCall askProvider(const std::string& prompt, const std::string& type) {
     const auto keys = loadAiKeys();
-    auto result = askProviderOnce(provider, prompt, type, keys);
+    const std::string preferred = configuredProviderKey("openai", keys).empty() ? "gemini" : "openai";
+    auto result = askProviderOnce(preferred, prompt, type, keys);
     if (result.ready || !result.fallbackEligible) return result;
-
-    const std::string other = provider == "openai" ? "gemini" : "openai";
-    if (configuredProviderKey(other, keys).empty()) {
-        result.message = (provider == "openai" ? "ChatGPT" : "Gemini") +
-            std::string(" is out of API credits or temporarily unavailable. Connect ") +
-            (other == "openai" ? "ChatGPT" : "Gemini") +
-            " in Render Environment to enable automatic fallback.";
+    const std::string alternate = preferred == "openai" ? "gemini" : "openai";
+    if (configuredProviderKey(alternate, keys).empty()) {
+        result.message += alternate == "gemini" ? " Add GEMINI_API_KEY in Render to enable the free-tier Gemini backup." : " Add OPENAI_API_KEY in Render to enable ChatGPT answers.";
         return result;
     }
-    auto fallback = askProviderOnce(other, prompt, type, keys);
-    if (!fallback.ready) {
-        fallback.message = "" + std::string(provider == "openai" ? "ChatGPT" : "Gemini") +
-            " could not answer (credits/quota or temporary issue), and " +
-            (other == "openai" ? "ChatGPT" : "Gemini") + " fallback also failed: " + fallback.message;
-        return fallback;
-    }
-    fallback.notice = (provider == "openai" ? "ChatGPT" : "Gemini") +
-        std::string(" was unavailable (often due to credits or quota); answered with ") +
-        (other == "openai" ? "ChatGPT" : "Gemini") + ".";
+    auto fallback = askProviderOnce(alternate, prompt, type, keys);
+    if (!fallback.ready) { fallback.message = "OpenAI and Gemini could not answer. " + fallback.message; return fallback; }
+    fallback.notice = preferred == "openai" ? "OpenAI was unavailable, so Gemini answered instead." : "Gemini answered; add OpenAI API credits to use ChatGPT as the primary model.";
     return fallback;
+}
+
+std::string wikipediaContext(const std::string& question) {
+    if (question.empty() || question.size() > 300) return "";
+    int searchStatus = -1;
+    const std::string searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=" +
+        urlEncode(question) + "&format=json&utf8=1&srlimit=1";
+    const std::string search = runCurl(searchUrl, "", {"User-Agent: ForgeFocusAI/1.0 (educational reference integration)"}, "", searchStatus);
+    if (searchStatus != 0) return "";
+    const std::string title = jsonStringField(search, "title");
+    if (title.empty()) return "";
+    std::string pageTitle = title;
+    std::replace(pageTitle.begin(), pageTitle.end(), ' ', '_');
+    const std::string summaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/" + urlEncode(pageTitle);
+    int summaryStatus = -1;
+    const std::string summary = runCurl(summaryUrl, "", {"User-Agent: ForgeFocusAI/1.0 (educational reference integration)"}, "", summaryStatus);
+    if (summaryStatus != 0) return "";
+    std::string extract = jsonStringField(summary, "extract");
+    const std::string canonical = jsonStringField(summary, "canonicalurl");
+    if (extract.empty()) return "";
+    if (extract.size() > 3000) extract.resize(3000);
+    return "Wikipedia reference (verify claims; not a substitute for the syllabus):\n" + extract +
+        (canonical.empty() ? "" : "\nSource: " + canonical);
+}
+
+AiCall generateStudyImage(const std::map<std::string, std::string>& fields) {
+    const auto keys = loadAiKeys();
+    const std::string key = configuredProviderKey("gemini", keys);
+    if (key.empty()) return {false, "Gemini image generation is not connected. Add GEMINI_API_KEY in Render Environment.", "gemini"};
+    const auto course = fields.count("course") ? fields.at("course") : "Course";
+    const auto unit = fields.count("unitTitle") ? fields.at("unitTitle") : "";
+    const auto topics = fields.count("topics") ? fields.at("topics") : "";
+    const auto style = fields.count("visualType") ? fields.at("visualType") : "concept map";
+    const auto syllabus = fields.count("syllabus") ? fields.at("syllabus") : "";
+    const std::string prompt = "Create one polished, readable educational study visual: " + style + ". Course: " + course +
+        (unit.empty() ? " (cover the complete syllabus, organize by unit)" : "; focus on unit: " + unit) +
+        ". Focus topics: " + topics + ". Use only factual concepts supported by this syllabus; preserve technical terms, spell them correctly, keep text concise and large, use a clear hierarchy, arrows/cards where helpful, high contrast, uncluttered layout, no fabricated details. "
+        "This is a study aid, not a decorative poster. Syllabus: " + syllabus;
+    const std::string endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
+    const std::string model = fileSetting("FORGEFOCUS_GEMINI_IMAGE_MODEL", "gemini-nano-banana-2.1");
+    const std::string request = "{\"model\":\"" + jsonEscape(model) + "\",\"input\":\"" + jsonEscape(prompt) + "\",\"response_format\":{\"type\":\"image\",\"mime_type\":\"image/png\",\"aspect_ratio\":\"4:3\",\"image_size\":\"1K\"}}";
+    int status = -1;
+    const std::string response = runCurl(endpoint, key, {"Content-Type: application/json", "x-goog-api-key: " + key}, request, status);
+    if (status != 0) {
+        const auto detail = jsonStringField(response, "message");
+        if (!detail.empty()) return {false, detail, "gemini"};
+        if (response.find("429") != std::string::npos || response.find("quota") != std::string::npos)
+            return {false, "Gemini image quota or credits are unavailable. Check Google AI Studio billing and quota.", "gemini"};
+        if (response.find("401") != std::string::npos || response.find("403") != std::string::npos)
+            return {false, "Gemini rejected the API key. Check GEMINI_API_KEY in Render Environment.", "gemini"};
+        return {false, "Gemini could not generate the study image. Check its API key, model access, and quota.", "gemini"};
+    }
+    const auto image = jsonStringField(response, "data");
+    if (image.empty()) return {false, "Gemini returned no image. Try a shorter syllabus or another visual style.", "gemini"};
+    return {true, image, "gemini", "image/png"};
 }
 
 std::string providersJson(const std::map<std::string, std::string>& keys) {
@@ -583,7 +626,7 @@ Response handleRequest(const std::string& method, const std::string& rawPath, co
         return {200, "OK", "application/json; charset=utf-8", "{\"status\":\"ok\"}"};
     if (hostedMode() && path.rfind("/api/", 0) == 0) {
         if (path != "/api/ai/providers" && path != "/api/ai/keys" &&
-            path != "/api/ai/analyze" && path != "/api/ai/teach" && path != "/api/ai/ask")
+            path != "/api/ai/analyze" && path != "/api/ai/teach" && path != "/api/ai/ask" && path != "/api/ai/visual")
             return {404, "Not Found", "application/json", "{\"error\":\"Unknown endpoint\"}"};
         if (authToken.empty() || !verifyGoogleIdToken(authToken))
             return {401, "Unauthorized", "application/json; charset=utf-8", "{\"error\":\"Please sign in with Google again\"}"};
@@ -628,25 +671,48 @@ Response handleRequest(const std::string& method, const std::string& rawPath, co
         if (!saveAiKeys(keys)) return {500, "Internal Server Error", "application/json", "{\"error\":\"Could not save keys in this project folder\"}"};
         return {200, "OK", "application/json; charset=utf-8", providersJson(keys)};
     }
-    if (method == "POST" && (path == "/api/ai/analyze" || path == "/api/ai/teach" || path == "/api/ai/ask")) {
+    if (method == "POST" && (path == "/api/ai/analyze" || path == "/api/ai/teach" || path == "/api/ai/ask" || path == "/api/ai/visual")) {
         const auto fields = parseForm(body);
         const std::string type = path.substr(std::string("/api/ai/").size());
-        const std::string provider = fields.count("provider") ? fields.at("provider") : "";
         const std::string syllabus = fields.count("syllabus") ? fields.at("syllabus") : "";
         const std::string course = fields.count("course") ? fields.at("course") : "";
         if (course.empty() || course.size() > 160)
             return {400, "Bad Request", "application/json", "{\"error\":\"Enter a course name up to 160 characters\"}"};
-        if (syllabus.size() < 80 || syllabus.size() > 140000)
+        if (syllabus.size() < 80 || syllabus.size() > 100000)
             return {400, "Bad Request", "application/json", "{\"error\":\"Syllabus text is empty or too large. Choose a text-based PDF under 20 MB\"}"};
+        if (type == "visual") {
+            const std::string visualType = fields.count("visualType") ? fields.at("visualType") : "concept map";
+            if (visualType != "concept map" && visualType != "sticky notes" && visualType != "flowchart")
+                return {400, "Bad Request", "application/json", "{\"error\":\"Choose a concept map, sticky notes, or flowchart\"}"};
+            auto result = generateStudyImage(fields);
+            if (!result.ready) return {502, "Bad Gateway", "application/json; charset=utf-8", "{\"error\":\"" + jsonEscape(result.message) + "\"}"};
+            return {200, "OK", "application/json; charset=utf-8", "{\"image\":\"" + result.message + "\",\"mimeType\":\"image/png\",\"provider\":\"Gemini\"}"};
+        }
         if (type == "teach" && (!fields.count("unitTitle") || fields.at("unitTitle").empty()))
             return {400, "Bad Request", "application/json", "{\"error\":\"Choose a course unit to prepare\"}"};
         if (type == "ask" && (!fields.count("question") || fields.at("question").empty() || fields.at("question").size() > 2500))
             return {400, "Bad Request", "application/json", "{\"error\":\"Enter a question up to 2500 characters\"}"};
-        auto result = askProvider(provider, aiPrompt(type, fields), type);
+        std::string prompt = aiPrompt(type, fields);
+        std::string wikiSource;
+        if (type == "ask" && fields.count("wikipediaOptIn") && fields.at("wikipediaOptIn") == "yes" &&
+            (!fields.count("unitTitle") || fields.at("unitTitle").empty())) {
+            const auto question = fields.at("question");
+            std::string lower = question;
+            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+            const bool quizRequest = lower.find("question") != std::string::npos || lower.find("quiz") != std::string::npos ||
+                lower.find("test") != std::string::npos || lower.find("exam") != std::string::npos || lower.find("practice") != std::string::npos;
+            if (!quizRequest) {
+                wikiSource = wikipediaContext(question);
+                if (!wikiSource.empty()) prompt += "\n\nOPTIONAL GENERAL KNOWLEDGE SOURCE (Wikipedia):\n" + wikiSource +
+                    "\nUse this reference only for general context beyond the uploaded syllabus. The syllabus remains authoritative for course questions. Cite the Wikipedia page URL if you use it.";
+            }
+        }
+        auto result = askProvider(prompt, type);
         if (!result.ready)
             return {502, "Bad Gateway", "application/json; charset=utf-8", "{\"error\":\"" + jsonEscape(result.message) + "\"}"};
         const std::string name = result.provider == "openai" ? "ChatGPT" : "Gemini";
-        return {200, "OK", "application/json; charset=utf-8", "{\"text\":\"" + jsonEscape(result.message) + "\",\"provider\":\"" + name + "\",\"notice\":\"" + jsonEscape(result.notice) + "\"}"};
+        const std::string notice = wikiSource.empty() ? result.notice : "Wikipedia reference added for general knowledge.";
+        return {200, "OK", "application/json; charset=utf-8", "{\"text\":\"" + jsonEscape(result.message) + "\",\"provider\":\"" + name + "\",\"notice\":\"" + jsonEscape(notice) + "\"}"};
     }
     if (method == "GET" && path == "/api/study/state") {
         const auto queryFields = parseForm(query);

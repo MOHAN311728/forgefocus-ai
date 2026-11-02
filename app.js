@@ -12,7 +12,7 @@ async function api(path,fields={}){
   const data=await response.json();if(!response.ok)throw new Error(data.error||'The request failed.');return data;
 }
 async function getProviders(){
-  try{providerReady=await (await fetch(`${API}/providers`,{headers:authHeaders()})).json();$('#server-status').classList.add('online');const selected=$('#provider-select').value,other=selected==='openai'?'gemini':'openai';const names={openai:'ChatGPT',gemini:'Gemini'};$('#provider-hint').textContent=providerReady[selected]?`${names[selected]} is connected. ForgeFocus will try ${names[other]} if needed.`:providerReady[other]?`${names[selected]} is not connected. ForgeFocus will use ${names[other]}.`:'Connect Gemini or ChatGPT to use AI teaching.';}
+  try{providerReady=await (await fetch(`${API}/providers`,{headers:authHeaders()})).json();$('#server-status').classList.add('online');$('#provider-hint').textContent=providerReady.openai?`ChatGPT answers first${providerReady.gemini?' · Gemini backup and study visuals ready.':' · Add Gemini for backup answers and study visuals.'}`:providerReady.gemini?'OpenAI key missing; Gemini answers enabled as backup and makes study visuals.':'Add OpenAI or Gemini API keys in Render to enable AI.';}
   catch{providerReady={};$('#server-status').classList.remove('online');$('#provider-hint').textContent='Start the C++ server to connect AI providers.';}
   updateAnalyzeButton();
 }
@@ -21,6 +21,7 @@ function updateAnalyzeButton(){
   const ready=!!syllabusText&&!!$('#course-name').value.trim()&&hasProvider;
   $('#analyze-button').disabled=!ready;
   $('#ask-button').disabled=!syllabusText||!$('#question-input').value.trim()||!hasProvider;
+  const visualButton=$('#visual-button');if(visualButton)visualButton.disabled=!syllabusText||!providerReady.gemini||!!visualButton.dataset.busy;
   const askStatus=$('#ask-status');
   if(askStatus&&!$('#ask-button').dataset.busy){
     if(!hasProvider){
@@ -127,6 +128,17 @@ function restoreCourse(){
 function showText(text,provider){
   const output=$('#lesson-output');output.replaceChildren();const pre=document.createElement('pre');pre.className='lesson-result';pre.textContent=text;output.append(pre);$('#lesson-provider').textContent=provider||$('#provider-select').selectedOptions[0].textContent;
 }
+$('#visual-button').addEventListener('click',async()=>{
+  const button=$('#visual-button');button.disabled=true;button.dataset.busy='1';$('#visual-status').textContent='Gemini is creating your study visual…';
+  try{
+    const result=await api('visual',{course:currentCourse,syllabus:syllabusText,unitTitle:selectedUnit?.title||'',topics:JSON.stringify(selectedUnit?.topics||[]),visualType:$('#visual-type').value});
+    if(!result.image||!['image/png','image/jpeg','image/webp'].includes(result.mimeType))throw new Error('Gemini returned an unsupported image. Please try again.');
+    const output=$('#lesson-output');output.replaceChildren();const image=document.createElement('img');image.className='study-visual';image.alt=`${$('#visual-type').value} for ${selectedUnit?.title||currentCourse}`;image.src=`data:${result.mimeType};base64,${result.image}`;output.append(image);
+    const download=document.createElement('a');download.className='visual-download';download.href=image.src;download.download=`${currentCourse.replace(/[^a-z0-9]+/gi,'-').toLowerCase()}-${$('#visual-type').value.replace(/\s+/g,'-')}.png`;download.textContent='Download study visual';output.append(download);
+    $('#lesson-title').textContent=selectedUnit?.title||currentCourse;$('#lesson-provider').textContent='GEMINI VISUAL';$('#visual-status').textContent='Study visual ready. You can download it above.';
+  }catch(error){$('#visual-status').textContent=error.message;}
+  finally{delete button.dataset.busy;updateAnalyzeButton();}
+});
 async function callTutor(type,fields){
   const button=type==='ask'?$('#ask-button'):$('#analyze-button');button.disabled=true;button.dataset.busy='1';
   if(type==='ask'){
@@ -158,7 +170,7 @@ function selectUnit(index){
   $('#ask-status').textContent=`Questions will focus on ${selectedUnit.title||`Unit ${index+1}`} and its listed syllabus topics.`;
   $('#ask-status').dataset.state='hint';updateAnalyzeButton();
 }
-$('#ask-button').addEventListener('click',()=>{const question=$('#question-input').value.trim();if(question&&syllabusText)callTutor('ask',{unitTitle:selectedUnit?.title||'',topics:JSON.stringify(selectedUnit?.topics||[]),question});});
+$('#ask-button').addEventListener('click',()=>{const question=$('#question-input').value.trim();if(question&&syllabusText)callTutor('ask',{unitTitle:selectedUnit?.title||'',topics:JSON.stringify(selectedUnit?.topics||[]),question,wikipediaOptIn:$('#wiki-opt-in').checked?'yes':'no'});});
 $('#question-input').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#ask-button').disabled){event.preventDefault();$('#ask-button').click();}});
 
 $('#settings-form').addEventListener('submit',async e=>{
