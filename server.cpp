@@ -20,7 +20,6 @@
 #include <sys/wait.h>
 #include <vector>
 #include <thread>
-#include <chrono>
 
 struct Task {
     int id{};
@@ -453,7 +452,7 @@ std::string configuredProviderKey(const std::string& provider, const std::map<st
 }
 
 AiCall askProviderOnce(const std::string& provider, const std::string& prompt, const std::string& type,
-                       const std::map<std::string, std::string>& keys) {
+                       const std::map<std::string, std::string>& keys, const std::string& modelOverride = "") {
     if (provider != "openai" && provider != "gemini") return {false, "Choose OpenAI or Gemini.", ""};
     const std::string key = configuredProviderKey(provider, keys);
     if (key.empty())
@@ -462,7 +461,7 @@ AiCall askProviderOnce(const std::string& provider, const std::string& prompt, c
     std::string model, endpoint, request;
     std::vector<std::string> headers{"Content-Type: application/json"};
     if (provider == "gemini") {
-        model = fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.8-flash");
+        model = modelOverride.empty() ? fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.8-flash") : modelOverride;
         endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
         headers.push_back("x-goog-api-key: " + key);
         request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "5000" : "6500") + "}}";
@@ -514,9 +513,12 @@ AiCall askProvider(const std::string& prompt, const std::string& type) {
         return result;
     }
     auto fallback = askProviderOnce(alternate, prompt, type, keys);
-    if (!fallback.ready && fallback.fallbackEligible && type == "ask") {
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-        fallback = askProviderOnce(alternate, prompt, type, keys);
+    if (!fallback.ready && fallback.fallbackEligible && alternate == "gemini" && type == "ask") {
+        // Try other currently supported fast models when the default model is overloaded.
+        for (const auto& model : {std::string("gemini-3.6-flash"), std::string("gemini-3.5-flash-lite")}) {
+            fallback = askProviderOnce(alternate, prompt, type, keys, model);
+            if (fallback.ready || !fallback.fallbackEligible) break;
+        }
     }
     if (!fallback.ready) { fallback.message = "AI service is busy or temporarily unavailable. Please try again in a minute."; return fallback; }
     fallback.notice = "Your syllabus answer is ready.";
