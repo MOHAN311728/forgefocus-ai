@@ -20,6 +20,7 @@
 #include <sys/wait.h>
 #include <vector>
 #include <thread>
+#include <chrono>
 
 struct Task {
     int id{};
@@ -480,6 +481,8 @@ AiCall askProviderOnce(const std::string& provider, const std::string& prompt, c
         const bool quotaOrTemporary = lower.find("429") != std::string::npos ||
             lower.find("quota") != std::string::npos || lower.find("resource_exhausted") != std::string::npos ||
             lower.find("no credits") != std::string::npos || lower.find("insufficient_quota") != std::string::npos ||
+            lower.find("high demand") != std::string::npos || lower.find("overloaded") != std::string::npos ||
+            lower.find("temporarily unavailable") != std::string::npos ||
             lower.find("billing_hard_limit") != std::string::npos || lower.find("rate limit") != std::string::npos ||
             lower.find("rate_limit") != std::string::npos || lower.find("500") != std::string::npos ||
             lower.find("502") != std::string::npos || lower.find("503") != std::string::npos ||
@@ -511,8 +514,12 @@ AiCall askProvider(const std::string& prompt, const std::string& type) {
         return result;
     }
     auto fallback = askProviderOnce(alternate, prompt, type, keys);
-    if (!fallback.ready) { fallback.message = "OpenAI and Gemini could not answer. " + fallback.message; return fallback; }
-    fallback.notice = preferred == "openai" ? "OpenAI was unavailable, so Gemini answered instead." : "Gemini answered; add OpenAI API credits to use ChatGPT as the primary model.";
+    if (!fallback.ready && fallback.fallbackEligible && type == "ask") {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        fallback = askProviderOnce(alternate, prompt, type, keys);
+    }
+    if (!fallback.ready) { fallback.message = "AI service is busy or temporarily unavailable. Please try again in a minute."; return fallback; }
+    fallback.notice = "Your syllabus answer is ready.";
     return fallback;
 }
 
@@ -686,7 +693,7 @@ Response handleRequest(const std::string& method, const std::string& rawPath, co
                 return {400, "Bad Request", "application/json", "{\"error\":\"Choose a concept map, sticky notes, or flowchart\"}"};
             auto result = generateStudyImage(fields);
             if (!result.ready) return {502, "Bad Gateway", "application/json; charset=utf-8", "{\"error\":\"" + jsonEscape(result.message) + "\"}"};
-            return {200, "OK", "application/json; charset=utf-8", "{\"image\":\"" + result.message + "\",\"mimeType\":\"image/png\",\"provider\":\"Gemini\"}"};
+            return {200, "OK", "application/json; charset=utf-8", "{\"image\":\"" + result.message + "\",\"mimeType\":\"image/png\",\"provider\":\"AI\"}"};
         }
         if (type == "teach" && (!fields.count("unitTitle") || fields.at("unitTitle").empty()))
             return {400, "Bad Request", "application/json", "{\"error\":\"Choose a course unit to prepare\"}"};
@@ -710,9 +717,8 @@ Response handleRequest(const std::string& method, const std::string& rawPath, co
         auto result = askProvider(prompt, type);
         if (!result.ready)
             return {502, "Bad Gateway", "application/json; charset=utf-8", "{\"error\":\"" + jsonEscape(result.message) + "\"}"};
-        const std::string name = result.provider == "openai" ? "ChatGPT" : "Gemini";
         const std::string notice = wikiSource.empty() ? result.notice : "Wikipedia reference added for general knowledge.";
-        return {200, "OK", "application/json; charset=utf-8", "{\"text\":\"" + jsonEscape(result.message) + "\",\"provider\":\"" + name + "\",\"notice\":\"" + jsonEscape(notice) + "\"}"};
+        return {200, "OK", "application/json; charset=utf-8", "{\"text\":\"" + jsonEscape(result.message) + "\",\"provider\":\"AI\",\"notice\":\"" + jsonEscape(notice) + "\"}"};
     }
     if (method == "GET" && path == "/api/study/state") {
         const auto queryFields = parseForm(query);
