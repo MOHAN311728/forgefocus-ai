@@ -502,10 +502,35 @@ AiCall askProviderOnce(const std::string& provider, const std::string& prompt, c
     return {true, text, provider};
 }
 
+bool canTryAnotherGeminiModel(const AiCall& result) {
+    if (!result.fallbackEligible) return false;
+    std::string message = result.message;
+    std::transform(message.begin(), message.end(), message.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return message.find("high demand") != std::string::npos || message.find("overload") != std::string::npos ||
+           message.find("temporarily unavailable") != std::string::npos || message.find("quota") != std::string::npos ||
+           message.find("rate limit") != std::string::npos || message.find("429") != std::string::npos ||
+           message.find("503") != std::string::npos || message.find("model is unavailable") != std::string::npos;
+}
+
+AiCall retryGeminiModels(AiCall result, const std::string& prompt, const std::string& type,
+                         const std::map<std::string, std::string>& keys) {
+    if (result.ready || !canTryAnotherGeminiModel(result)) return result;
+    const auto configured = fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.8-flash");
+    for (const auto& model : {std::string("gemini-3.6-flash"), std::string("gemini-3.5-flash-lite")}) {
+        if (model == configured) continue;
+        result = askProviderOnce("gemini", prompt, type, keys, model);
+        if (result.ready || !canTryAnotherGeminiModel(result)) break;
+    }
+    return result;
+}
+
 AiCall askProvider(const std::string& prompt, const std::string& type) {
     const auto keys = loadAiKeys();
-    const std::string preferred = configuredProviderKey("openai", keys).empty() ? "gemini" : "openai";
+    // Gemini analyzes every syllabus and prepares unit lessons; text Q&A prefers the stronger answer model.
+    const std::string preferred = (type == "analyze" || type == "teach") ? "gemini" :
+        (configuredProviderKey("openai", keys).empty() ? "gemini" : "openai");
     auto result = askProviderOnce(preferred, prompt, type, keys);
+    if (!result.ready && preferred == "gemini") result = retryGeminiModels(result, prompt, type, keys);
     if (result.ready || !result.fallbackEligible) return result;
     const std::string alternate = preferred == "openai" ? "gemini" : "openai";
     if (configuredProviderKey(alternate, keys).empty()) {
@@ -513,13 +538,7 @@ AiCall askProvider(const std::string& prompt, const std::string& type) {
         return result;
     }
     auto fallback = askProviderOnce(alternate, prompt, type, keys);
-    if (!fallback.ready && fallback.fallbackEligible && alternate == "gemini" && type == "ask") {
-        // Try other currently supported fast models when the default model is overloaded.
-        for (const auto& model : {std::string("gemini-3.6-flash"), std::string("gemini-3.5-flash-lite")}) {
-            fallback = askProviderOnce(alternate, prompt, type, keys, model);
-            if (fallback.ready || !fallback.fallbackEligible) break;
-        }
-    }
+    if (!fallback.ready && alternate == "gemini") fallback = retryGeminiModels(fallback, prompt, type, keys);
     if (!fallback.ready) { fallback.message = "AI service is busy or temporarily unavailable. Please try again in a minute."; return fallback; }
     fallback.notice = "Your syllabus answer is ready.";
     return fallback;
