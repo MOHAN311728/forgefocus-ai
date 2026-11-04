@@ -1,7 +1,7 @@
 const API='/api/ai';
 const ACCOUNT_KEY='forgefocus-account-v1';
 const $=s=>document.querySelector(s);
-let faculty=null, facultyToken=sessionStorage.getItem('forgefocus-id-token')||'', syllabusText='', syllabusName='', currentCourse='', units=[], selectedUnit=null, providerReady={};
+let faculty=null, facultyToken=sessionStorage.getItem('forgefocus-id-token')||'', syllabusText='', syllabusName='', currentCourse='', units=[], selectedUnit=null, providerReady={}, syllabusRevision=0;
 const loginScreen=$('#login-screen'), app=$('#app'), inputFile=$('#syllabus-file');
 
 function localKey(){return `forgefocus-courses:${faculty?.sub||'guest'}`;}
@@ -66,9 +66,23 @@ $('#course-name').addEventListener('input',updateAnalyzeButton);
 $('#question-input').addEventListener('input',updateAnalyzeButton);
 $('#general-question').addEventListener('input',updateAnalyzeButton);
 
-async function extractPdf(file){
+function resetCourseForReplacement(){
+  syllabusRevision++;syllabusText='';syllabusName='';currentCourse='';units=[];selectedUnit=null;
+  $('#course-name').value='';$('#file-label').textContent='Drop the syllabus PDF here';$('#file-subtitle').innerHTML='or <u>browse files</u> from your device';$('#course-workspace').hidden=true;$('#course-empty').hidden=true;
+  $('#sidebar-course-title').innerHTML='Upload a syllabus<br>to get started';$('#course-heading').textContent='';$('#analysis-summary').textContent='Review the syllabus units, then open a unit to prepare a lesson.';
+  $('#unit-count').textContent='0 UNITS';$('#units-list').replaceChildren();
+  const empty=document.createElement('div');empty.className='empty-state';empty.textContent='Upload a syllabus and analyze it to see its units here.';$('#units-list').append(empty);
+  $('#lesson-title').textContent='Your lesson workspace';$('#lesson-provider').textContent='AI READY';
+  $('#lesson-output').innerHTML='<div class="lesson-empty"><span>✦</span><h3>Choose a unit to begin</h3><p>ForgeFocus AI can prepare a lesson outline, simple explanation, real-world example, and quick check questions.</p></div>';
+  $('#question-input').value='';$('#general-qa-answer').textContent='';$('#general-qa-answer').hidden=true;
+  $('#ask-status').textContent='Answers use the syllabus for course questions and can explain broader education topics too.';$('#ask-status').dataset.state='hint';
+  $('#upload-message').textContent='';updateAnalyzeButton();
+  return syllabusRevision;
+}
+async function extractPdf(file,revision){
   if(!file||file.type!=='application/pdf'&&!file.name.toLowerCase().endsWith('.pdf'))throw new Error('Choose a PDF syllabus.');
   if(file.size>20*1024*1024)throw new Error('This PDF is over 20 MB. Please choose a smaller file.');
+  if(revision!==syllabusRevision)return;
   $('#upload-message').textContent='Reading the PDF text…';
   const pdfjs=await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.min.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
@@ -76,18 +90,19 @@ async function extractPdf(file){
   for(let i=1;i<=pdf.numPages;i++){
     const page=await pdf.getPage(i);const content=await page.getTextContent();pages.push(content.items.map(item=>item.str||'').join(' '));
   }
+  if(revision!==syllabusRevision)return;
   const text=pages.join('\n');if(text.trim().length<80)throw new Error('This PDF has no selectable text. It may be scanned; OCR support is not set up yet.');
   syllabusText=text.slice(0,100000);syllabusName=file.name;$('#file-label').textContent=file.name;$('#file-subtitle').textContent=`${pdf.numPages} pages · ${(file.size/1024/1024).toFixed(1)} MB`;
   $('#upload-message').textContent=`Read ${pdf.numPages} pages. The PDF is processed in your browser; extracted text is sent to the AI you select only when you analyze or ask a question.`;
-  if(!$('#course-name').value.trim())$('#course-name').value=file.name.replace(/\.pdf$/i,'').replace(/[_-]+/g,' ');
+  $('#course-name').value=file.name.replace(/\.pdf$/i,'').replace(/[_-]+/g,' ');
   updateAnalyzeButton();
 }
-inputFile.addEventListener('change',async()=>{try{await extractPdf(inputFile.files?.[0]);}catch(e){syllabusText='';$('#upload-message').textContent=e.message;updateAnalyzeButton();}});
+inputFile.addEventListener('change',async()=>{const file=inputFile.files?.[0];if(!file)return;inputFile.value='';const revision=resetCourseForReplacement();try{await extractPdf(file,revision);}catch(e){if(revision!==syllabusRevision)return;syllabusText='';$('#upload-message').textContent=e.message;updateAnalyzeButton();}});
 const drop=$('#drop-zone');
 drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('dragover');});
 drop.addEventListener('dragleave',()=>drop.classList.remove('dragover'));
-drop.addEventListener('drop',async e=>{e.preventDefault();drop.classList.remove('dragover');const f=e.dataTransfer.files?.[0];try{await extractPdf(f);}catch(err){syllabusText='';$('#upload-message').textContent=err.message;updateAnalyzeButton();}});
-$('#replace-syllabus').addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'});inputFile.click();});
+drop.addEventListener('drop',async e=>{e.preventDefault();drop.classList.remove('dragover');const f=e.dataTransfer.files?.[0];if(!f)return;const revision=resetCourseForReplacement();inputFile.value='';try{await extractPdf(f,revision);}catch(err){if(revision!==syllabusRevision)return;syllabusText='';$('#upload-message').textContent=err.message;updateAnalyzeButton();}});
+$('#replace-syllabus').addEventListener('click',()=>{window.scrollTo({top:0,behavior:'smooth'});inputFile.value='';inputFile.click();});
 
 function extractJson(text){
   const clean=text.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
@@ -144,18 +159,21 @@ $('#visual-button').addEventListener('click',async()=>{
 });
 async function callTutor(type,fields){
   const button=type==='ask'?$('#ask-button'):$('#analyze-button');button.disabled=true;button.dataset.busy='1';
+  const requestRevision=syllabusRevision;
   if(type==='ask'){
     $('#lesson-title').textContent='Syllabus question';
     showText('Reading the syllabus and preparing your answer…','AI');
     $('#ask-status').textContent='Working from the uploaded syllabus…';$('#ask-status').dataset.state='busy';
   }
   try{const result=await api(type,{provider:$('#provider-select').value,course:currentCourse,syllabus:syllabusText,...fields});
+    if(requestRevision!==syllabusRevision)return;
     if(type==='analyze'){
       const parsed=extractJson(result.text);currentCourse=$('#course-name').value.trim();renderUnits(parsed);persistCourse(parsed);showText(parsed.course_summary||'Course map generated. Select a unit to create a lesson.',result.provider);
     }else if(type==='teach'){showText(result.text,result.provider);$('#lesson-title').textContent=fields.unitTitle||'Lesson notes';}
     else {showText(result.text,result.provider);$('#lesson-title').textContent='Syllabus question';$('#question-input').value='';$('#ask-status').textContent=result.notice||'Answer prepared from the uploaded syllabus.';$('#ask-status').dataset.state='result';}
     $('#upload-message').textContent=result.notice|| (type==='analyze'?'Syllabus analysis complete. Review each unit and select Prepare this lesson.':'AI teaching material is ready.');
   }catch(error){
+    if(requestRevision!==syllabusRevision)return;
     const safeError='AI service is busy or temporarily unavailable. Your syllabus is still saved; please retry in a minute.';
     if(type==='ask'){showText(safeError,'AI');$('#lesson-title').textContent='Syllabus question';$('#ask-status').textContent='Please try again shortly. If this continues, contact the faculty administrator.';$('#ask-status').dataset.state='error';}
     $('#upload-message').textContent=safeError;
