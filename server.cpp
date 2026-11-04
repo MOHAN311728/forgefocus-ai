@@ -552,7 +552,7 @@ AiCall generateStudyImage(const std::map<std::string, std::string>& fields) {
     const auto keys = loadAiKeys();
     const std::string key = configuredProviderKey("gemini", keys);
     if (key.empty()) return {false, "Gemini image generation is not connected. Add GEMINI_API_KEY in Render Environment.", "gemini"};
-    const auto course = fields.count("course") ? fields.at("course") : "Course";
+    const auto course = fields.count("course") && !fields.at("course").empty() ? fields.at("course") : "General education";
     const auto unit = fields.count("unitTitle") ? fields.at("unitTitle") : "";
     const auto topics = fields.count("topics") ? fields.at("topics") : "";
     const auto style = fields.count("visualType") ? fields.at("visualType") : "concept map";
@@ -596,7 +596,7 @@ std::string providersJson(const std::map<std::string, std::string>& keys) {
 }
 
 std::string aiPrompt(const std::string& type, const std::map<std::string, std::string>& fields) {
-    const auto course = fields.count("course") ? fields.at("course") : "Course";
+    const auto course = fields.count("course") && !fields.at("course").empty() ? fields.at("course") : "General education";
     const auto syllabus = fields.count("syllabus") ? fields.at("syllabus") : "";
     const auto unit = fields.count("unitTitle") ? fields.at("unitTitle") : "";
     const auto topics = fields.count("topics") ? fields.at("topics") : "";
@@ -611,14 +611,13 @@ std::string aiPrompt(const std::string& type, const std::map<std::string, std::s
                "Keep facts tied to the syllabus and label any useful background as extra context. SYLLABUS:\n" + syllabus;
     }
     const auto question = fields.count("question") ? fields.at("question") : "";
-    return "You are ForgeFocus AI, a precise college teaching assistant for course " + course + ". "
-           "First identify what the faculty is asking. If they ask for test, quiz, practice, or exam questions (including informal wording like 'give 10 questions'), generate the questions; do not merely explain how to make them. "
-           "Return exactly the requested count (default 10). Do not add a preamble, request summary, or conclusion. Number each question, then provide a matching Answer key with a concise, clear answer for every number. Make a balanced mix of recall, understanding, and application questions when the syllabus supports it. "
-           "When an active unit is provided, base the questions on that unit and its listed topics. If the faculty names one specific topic, prioritize that topic within the active unit. If no unit is active, cover the full syllabus and balance across its units. "
-           "Treat the uploaded syllabus as the source of truth. Use only its supported content; do not invent units, topic details, or facts. If the PDF text does not contain enough information for the requested count, say what is missing instead of padding with guesses. "
-           "For non-question-generation requests, answer directly and concisely from the syllabus, clearly marking any extra context. "
+    const bool hasSyllabus = !syllabus.empty();
+    return "You are ForgeFocus AI, a capable education tutor for students and faculty across school and college subjects. Answer educational questions directly: explain concepts, solve problems step by step, give examples, explain code or calculations, make lessons, or create practice material as requested. Match the requested level; if none is stated, use clear plain language. Course context: " + course + ". "
+           "First identify what the user is asking and answer that task. If they ask for test, quiz, practice, or exam questions (including informal wording like 'give 10 questions'), generate them; do not merely explain how. Use the number they request; if they ask for questions without a number, generate 10. For question sets, number each question and add a matching Answer key with a concise, clear answer for every number. Make a balanced mix of recall, understanding, and application questions when suitable. For all other requests, follow the requested format and do not turn the answer into a quiz. "
+           "When the request asks about an uploaded course, a unit, its syllabus, or questions for that course, use the syllabus as the source for course-specific facts and do not invent syllabus contents. A syllabus may list a topic without teaching its definition; explain that topic using standard subject knowledge and label that explanation as extra learning context. If the user asks a broader education question, answer it using your subject knowledge even when an uploaded syllabus is present; do not refuse just because the answer is not written in the PDF. Clearly label syllabus facts versus extra learning context when both are used. "
+           "When an active unit is provided and the request is about that unit, use its topics; if no unit is active, use the full syllabus only for course-specific questions. "
            "ACTIVE UNIT: " + (unit.empty() ? "none" : unit) + "\nACTIVE UNIT TOPICS: " + (topics.empty() ? "none" : topics) +
-           "\nFACULTY REQUEST: " + question + "\nSYLLABUS (source of truth):\n" + syllabus;
+           "\nUSER REQUEST: " + question + (hasSyllabus ? "\nUPLOADED SYLLABUS (for course-specific questions):\n" + syllabus : "\nNo syllabus has been uploaded. Answer as a general education tutor.");
 }
 
 Response handleRequest(const std::string& method, const std::string& rawPath, const std::string& body,
@@ -685,9 +684,9 @@ Response handleRequest(const std::string& method, const std::string& rawPath, co
         const std::string type = path.substr(std::string("/api/ai/").size());
         const std::string syllabus = fields.count("syllabus") ? fields.at("syllabus") : "";
         const std::string course = fields.count("course") ? fields.at("course") : "";
-        if (course.empty() || course.size() > 160)
+        if ((course.empty() && type != "ask") || course.size() > 160)
             return {400, "Bad Request", "application/json", "{\"error\":\"Enter a course name up to 160 characters\"}"};
-        if (syllabus.size() < 80 || syllabus.size() > 100000)
+        if ((type != "ask" && syllabus.size() < 80) || syllabus.size() > 100000)
             return {400, "Bad Request", "application/json", "{\"error\":\"Syllabus text is empty or too large. Choose a text-based PDF under 20 MB\"}"};
         if (type == "visual") {
             const std::string visualType = fields.count("visualType") ? fields.at("visualType") : "concept map";

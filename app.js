@@ -21,6 +21,8 @@ function updateAnalyzeButton(){
   const ready=!!syllabusText&&!!$('#course-name').value.trim()&&hasProvider;
   $('#analyze-button').disabled=!ready;
   $('#ask-button').disabled=!syllabusText||!$('#question-input').value.trim()||!hasProvider;
+  const generalQuestion=$('#general-question'),generalButton=$('#general-ask');
+  if(generalQuestion&&generalButton)generalButton.disabled=!generalQuestion.value.trim()||!hasProvider||!!generalButton.dataset.busy;
   const visualButton=$('#visual-button');if(visualButton)visualButton.disabled=!syllabusText||!providerReady.gemini||!!visualButton.dataset.busy;
   const askStatus=$('#ask-status');
   if(askStatus&&!$('#ask-button').dataset.busy){
@@ -62,6 +64,7 @@ $('#settings-close').addEventListener('click',()=>$('#settings-dialog').close())
 $('#provider-select').addEventListener('change',()=>{getProviders();});
 $('#course-name').addEventListener('input',updateAnalyzeButton);
 $('#question-input').addEventListener('input',updateAnalyzeButton);
+$('#general-question').addEventListener('input',updateAnalyzeButton);
 
 async function extractPdf(file){
   if(!file||file.type!=='application/pdf'&&!file.name.toLowerCase().endsWith('.pdf'))throw new Error('Choose a PDF syllabus.');
@@ -173,6 +176,20 @@ function selectUnit(index){
 }
 $('#ask-button').addEventListener('click',()=>{const question=$('#question-input').value.trim();if(question&&syllabusText)callTutor('ask',{unitTitle:selectedUnit?.title||'',topics:JSON.stringify(selectedUnit?.topics||[]),question,wikipediaOptIn:$('#wiki-opt-in').checked?'yes':'no'});});
 $('#question-input').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#ask-button').disabled){event.preventDefault();$('#ask-button').click();}});
+
+async function askGeneralEducation(){
+  const question=$('#general-question').value.trim(),button=$('#general-ask'),answer=$('#general-qa-answer'),status=$('#general-qa-status');
+  if(!question||button.disabled)return;
+  button.disabled=true;button.dataset.busy='1';answer.hidden=true;status.textContent='Preparing an educational answer…';
+  try{
+    const result=await api('ask',{course:currentCourse||$('#course-name').value.trim()||'General education',syllabus:syllabusText,unitTitle:'',topics:'',question,wikipediaOptIn:'no'});
+    answer.textContent=result.text;answer.hidden=false;status.textContent=result.notice||'Answer ready.';$('#general-question').value='';
+  }catch{
+    status.textContent='AI service is busy or temporarily unavailable. Please try again shortly.';
+  }finally{delete button.dataset.busy;updateAnalyzeButton();}
+}
+$('#general-ask').addEventListener('click',askGeneralEducation);
+$('#general-question').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#general-ask').disabled){event.preventDefault();askGeneralEducation();}});
 
 $('#settings-form').addEventListener('submit',async e=>{
   e.preventDefault();const values={openai:$('#key-openai').value.trim(),gemini:$('#key-gemini').value.trim()};
