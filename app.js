@@ -35,7 +35,7 @@ function updateAnalyzeButton(){
     }
   }
 }
-function showWorkspace(){loginScreen.hidden=true;app.hidden=false;$('#faculty-name').textContent=faculty.name;$('#avatar').textContent=(faculty.name||'F').trim().charAt(0).toUpperCase();$('#course-empty').hidden=false;getProviders();restoreCourse();renderCourseLibrary();}
+function showWorkspace(){loginScreen.hidden=true;app.hidden=false;$('#faculty-name').textContent=faculty.name;$('#avatar').textContent=(faculty.name||'F').trim().charAt(0).toUpperCase();$('#account-email').textContent=faculty.email;$('#account-email').title=faculty.email;$('#account-avatar').textContent=(faculty.name||faculty.email||'F').trim().charAt(0).toUpperCase();$('#account-dialog-email').textContent=faculty.email;$('#course-empty').hidden=false;getProviders();restoreCourse();renderCourseLibrary();}
 function parseCredential(response){
   try{
     const clientId=window.FORGEFOCUS_CONFIG?.googleClientId||'';
@@ -50,6 +50,7 @@ function initGoogle(){
   const id=window.FORGEFOCUS_CONFIG?.googleClientId||'';
   if(!id||id.startsWith('PASTE_')){$('#login-message').textContent='Add your Google Web Client ID to config.js before signing in.';return;}
   if(!window.google?.accounts?.id){const n=Number($('#google-button').dataset.wait||0)+1;$('#google-button').dataset.wait=String(n);if(n<30)setTimeout(initGoogle,200);else $('#login-message').textContent='Google sign-in could not load. Check the internet and reload.';return;}
+  $('#google-button').replaceChildren();$('#google-button').dataset.wait='0';
   window.google.accounts.id.initialize({client_id:id,callback:parseCredential,auto_select:false});
   window.google.accounts.id.renderButton($('#google-button'),{type:'standard',theme:'outline',size:'large',shape:'rectangular',text:'signin_with',width:280});
 }
@@ -58,7 +59,12 @@ if(window.FORGEFOCUS_CONFIG?.hosted&&(!faculty||!tokenIsFresh(facultyToken))){fa
 if(window.FORGEFOCUS_CONFIG?.hosted)$('#settings-open').hidden=true;
 if(faculty)showWorkspace();else initGoogle();
 
-$('#sign-out').addEventListener('click',()=>{localStorage.removeItem(ACCOUNT_KEY);sessionStorage.removeItem('forgefocus-id-token');facultyToken='';faculty=null;app.hidden=true;loginScreen.hidden=false;if(window.google?.accounts?.id)window.google.accounts.id.disableAutoSelect();initGoogle();});
+function endAccountSession(message){localStorage.removeItem(ACCOUNT_KEY);sessionStorage.removeItem('forgefocus-id-token');facultyToken='';faculty=null;app.hidden=true;loginScreen.hidden=false;$('#login-message').textContent=message;if(window.google?.accounts?.id)window.google.accounts.id.disableAutoSelect();initGoogle();}
+$('#account-open').addEventListener('click',()=>{if(faculty){$('#account-message').textContent='';$('#account-dialog').showModal();}});
+$('#account-close').addEventListener('click',()=>$('#account-dialog').close());
+$('#switch-account').addEventListener('click',()=>{ $('#account-dialog').close();endAccountSession('Choose a Google account to continue. To use another one, select “Use another account” in Google’s sign-in window.'); });
+$('#account-sign-out').addEventListener('click',()=>{ $('#account-dialog').close();endAccountSession('You are signed out. Sign in with Google to continue.'); });
+$('#sign-out').addEventListener('click',()=>endAccountSession('You are signed out. Sign in with Google to continue.'));
 $('#settings-open').addEventListener('click',()=>$('#settings-dialog').showModal());
 $('#settings-close').addEventListener('click',()=>$('#settings-dialog').close());
 $('#provider-select').addEventListener('change',()=>{getProviders();});

@@ -22,3 +22,20 @@
 .lesson-result hr{border:0;border-top:1px solid var(--line);margin:15px 0}
 .lesson-result code{padding:1px 5px;border-radius:4px;background:#eff3ef;font-family:var(--mono);font-size:.92em}
 @media(max-width:600px){.lesson-result table{display:block;overflow-x:auto;white-space:normal}}
+
+/* Signed-in Google account controls */
+.account-chip{display:flex;align-items:center;gap:8px;max-width:min(320px,38vw);min-width:0;padding:5px 9px 5px 5px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font-size:11px}
+.account-chip:hover,.account-chip:focus-visible{border-color:#9db7a3;color:var(--green);outline:0}
+.account-chip .avatar{width:27px;height:27px;flex:0 0 27px}
+.account-chip #account-email{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-chevron{color:var(--muted);font-size:10px}
+.account-dialog{position:relative;width:min(390px,calc(100vw - 28px));border:1px solid var(--line);border-radius:14px;padding:25px;background:#fff;color:var(--ink);box-shadow:0 24px 80px #14241b30}
+.account-dialog::backdrop{background:#14201970;backdrop-filter:blur(3px)}
+.account-dialog h2{font-size:20px;margin:0 30px 5px 0}
+.account-dialog .dialog-close{position:absolute;top:12px;right:15px}
+.account-dialog-email{margin:0 0 10px;color:var(--green);font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.account-dialog .settings-copy{margin:0 0 8px}
+.account-actions{display:flex;align-items:center;gap:10px;margin-top:14px}
+.account-actions .primary-button{flex:1;min-height:42px}
+.account-actions .outline-button{min-height:40px}
+@media(max-width:600px){.account-chip{max-width:52vw;gap:6px;padding-right:7px}.account-chip .avatar{width:24px;height:24px;flex-basis:24px}.account-chevron{display:none}.account-actions{align-items:stretch;flex-direction:column}.account-actions .outline-button{width:100%}}

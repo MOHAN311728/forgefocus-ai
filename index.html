@@ -9,7 +9,7 @@
   <div id="login-screen" class="login-screen">
     <div class="login-brand"><span class="brand-mark">F</span><span>ForgeFocus <b>AI</b></span></div>
     <div class="login-card"><p class="eyebrow">FACULTY WORKSPACE</p><h1>Turn any syllabus<br>into a <em>teachable course.</em></h1><p class="login-copy">Upload the syllabus PDF. ForgeFocus AI maps the units and helps you prepare lessons, examples, questions, and explanations.</p><div id="google-button"></div><p id="login-message" class="subtle" aria-live="polite">Sign in with your Google account to open your workspace.</p></div>
-    <p class="login-foot">YOUR SYLLABUS · YOUR TEACHING WORKSPACE</p>
+    <p class="login-foot">YOUR SYLLABUS · YOUR TEACHING WORKSPACE · OWNED BY P. MOHAN</p>
   </div>
 
   <div id="app" class="app" hidden>
@@ -21,7 +21,7 @@
     </aside>
 
     <main class="main-content">
-      <header class="topbar"><div><span class="breadcrumb">WORKSPACE</span><span class="crumb-divider">/</span><strong id="page-title">Syllabus studio</strong></div><div class="top-actions"><span id="server-status" class="connection"><i></i> C++ ENGINE</span><button id="settings-open" class="outline-button">AI PROVIDERS</button></div></header>
+      <header class="topbar"><div><span class="breadcrumb">WORKSPACE</span><span class="crumb-divider">/</span><strong id="page-title">Syllabus studio</strong></div><div class="top-actions"><span id="server-status" class="connection"><i></i> C++ ENGINE</span><button id="settings-open" class="outline-button">AI PROVIDERS</button><button id="account-open" class="account-chip" type="button" aria-haspopup="dialog" aria-controls="account-dialog"><span id="account-avatar" class="avatar">F</span><span id="account-email">Google account</span><span class="account-chevron">▾</span></button></div></header>
       <section class="welcome"><div><p class="eyebrow">SYLLABUS TO CLASSROOM</p><h1>Teach a new subject<br>with <em>confidence.</em></h1><p>Let AI read the syllabus, map every unit, and help you teach it step by step.</p></div><div class="welcome-art"><span>✳</span><small>YOUR TEACHING<br>CO-PILOT</small></div></section>
 
       <section id="upload-section" class="upload-section card">
@@ -46,10 +46,11 @@
       </section>
       <section id="course-library" class="course-library" hidden><div class="workspace-title"><div><p class="eyebrow">FACULTY LIBRARY</p><h2>My courses</h2><p>Continue preparing any syllabus saved to this browser.</p></div><button id="new-course" class="primary-button">Upload a syllabus <span>→</span></button></div><div id="course-list" class="course-list"></div></section>
       <section id="course-empty" class="course-empty"><div class="empty-symbol">✳</div><h2>Your courses will appear here</h2><p>Each Google account keeps its own course workspace on this device.</p></section>
-      <footer>FORGEFOCUS AI <span>·</span> PLAN CLEARLY. TEACH WITH CONFIDENCE.</footer>
+      <footer>FORGEFOCUS AI <span>·</span> PLAN CLEARLY. TEACH WITH CONFIDENCE. <span>·</span> OWNED BY P. MOHAN</footer>
     </main>
   </div>
 
   <dialog id="settings-dialog" class="settings-dialog"><form id="settings-form"><button type="button" id="settings-close" class="dialog-close">×</button><p class="eyebrow">LOCAL AI CONFIGURATION</p><h2>Connect the AI service</h2><p class="settings-copy">Add an answer key and a backup key. The system switches automatically if the primary service is unavailable. Study visuals use the backup service.</p><label for="key-openai">PRIMARY AI KEY</label><input id="key-openai" type="password" placeholder="Paste key" autocomplete="off"><label for="key-gemini">BACKUP / VISUAL AI KEY</label><input id="key-gemini" type="password" placeholder="Paste key" autocomplete="off"><p class="settings-warning">Keys are not displayed again after saving. Add hosted keys privately in Render Environment; never share them in chat or screenshots.</p><div id="settings-message" class="status-message"></div><button class="primary-button" type="submit">Save keys <span>→</span></button></form></dialog>
+  <dialog id="account-dialog" class="account-dialog" aria-labelledby="account-dialog-title"><button type="button" id="account-close" class="dialog-close" aria-label="Close account menu">×</button><p class="eyebrow">SIGNED-IN GOOGLE ACCOUNT</p><h2 id="account-dialog-title">Your account</h2><p id="account-dialog-email" class="account-dialog-email"></p><p class="settings-copy">Switch to another Google account for a separate course workspace on this device.</p><p id="account-message" class="status-message" role="status" aria-live="polite"></p><div class="account-actions"><button id="switch-account" class="primary-button" type="button">Switch Google account <span>→</span></button><button id="account-sign-out" class="outline-button" type="button">Sign out</button></div></dialog>
   <script src="config.js"></script><script src="app.js"></script>
 </body></html>
