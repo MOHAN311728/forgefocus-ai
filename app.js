@@ -144,7 +144,17 @@ function restoreCourse(){
   }catch{localStorage.removeItem(localKey());}
 }
 function showText(text,provider){
-  const output=$('#lesson-output');output.replaceChildren();const pre=document.createElement('pre');pre.className='lesson-result';pre.textContent=text;output.append(pre);$('#lesson-provider').textContent='AI';
+  const output=$('#lesson-output');output.replaceChildren();const article=renderAnswer(text);article.className='lesson-result';output.append(article);$('#lesson-provider').textContent='AI';
+}
+function renderAnswer(markdown){
+  const root=document.createElement('div');
+  const inline=(parent,value)=>{const re=/(\*\*|__)(.+?)\1|`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;let at=0,m;while((m=re.exec(value))){parent.append(document.createTextNode(value.slice(at,m.index)));if(m[3]){const code=document.createElement('code');code.textContent=m[3];parent.append(code);}else if(m[4]){const a=document.createElement('a');a.textContent=m[4];a.href=m[5];a.target='_blank';a.rel='noopener noreferrer';parent.append(a);}else{const strong=document.createElement('strong');strong.textContent=m[2];parent.append(strong);}at=re.lastIndex;}parent.append(document.createTextNode(value.slice(at)));};
+  const lines=String(markdown||'').replace(/\\n/g,'\n').split(/\r?\n/);let list=null,table=null,paragraph=[];
+  const flush=()=>{if(paragraph.length){const p=document.createElement('p');inline(p,paragraph.join(' '));root.append(p);paragraph=[];}};
+  for(let i=0;i<lines.length;i++){const line=lines[i].trim();if(!line){flush();list=null;continue;}if(/^\|.*\|$/.test(line)){flush();const cells=s=>s.trim().replace(/^\||\|$/g,'').split('|').map(x=>x.trim());if(/^[|\s:–-]+$/.test(line))continue;if(!table){table=document.createElement('table');const thead=document.createElement('thead'),tr=document.createElement('tr');cells(line).forEach(c=>{const th=document.createElement('th');inline(th,c);tr.append(th);});thead.append(tr);table.append(thead,document.createElement('tbody'));root.append(table);}else{const tr=document.createElement('tr');cells(line).forEach(c=>{const td=document.createElement('td');inline(td,c);tr.append(td);});table.tBodies[0].append(tr);}continue;}table=null;
+    const h=line.match(/^(#{1,4})\s+(.+)$/);if(h){flush();list=null;const el=document.createElement(h[1].length<=2?'h3':'h4');inline(el,h[2].replace(/\s+#+$/,''));root.append(el);continue;}if(/^[-*_]{3,}$/.test(line)){flush();list=null;root.append(document.createElement('hr'));continue;}
+    const item=line.match(/^\s*(?:[-*+]\s+|(\d+)[.)]\s+)(.+)$/);if(item){flush();const ordered=!!item[1];if(!list||list.tagName!==(ordered?'OL':'UL')){list=document.createElement(ordered?'ol':'ul');root.append(list);}const li=document.createElement('li');inline(li,item[2]);list.append(li);continue;}list=null;paragraph.push(line);
+  }flush();return root;
 }
 $('#visual-button').addEventListener('click',async()=>{
   const button=$('#visual-button');button.disabled=true;button.dataset.busy='1';$('#visual-status').textContent='Creating your study visual…';
@@ -201,7 +211,7 @@ async function askGeneralEducation(){
   button.disabled=true;button.dataset.busy='1';answer.hidden=true;status.textContent='Preparing an educational answer…';
   try{
     const result=await api('ask',{course:currentCourse||$('#course-name').value.trim()||'General education',syllabus:syllabusText,unitTitle:'',topics:'',question,wikipediaOptIn:'no'});
-    answer.textContent=result.text;answer.hidden=false;status.textContent=result.notice||'Answer ready.';$('#general-question').value='';
+    answer.replaceChildren(renderAnswer(result.text));answer.hidden=false;status.textContent=result.notice||'Answer ready.';$('#general-question').value='';
   }catch{
     status.textContent='AI service is busy or temporarily unavailable. Please try again shortly.';
   }finally{delete button.dataset.busy;updateAnalyzeButton();}
