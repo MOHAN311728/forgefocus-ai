@@ -83,17 +83,29 @@ async function extractPdf(file,revision){
   if(!file||file.type!=='application/pdf'&&!file.name.toLowerCase().endsWith('.pdf'))throw new Error('Choose a PDF syllabus.');
   if(file.size>20*1024*1024)throw new Error('This PDF is over 20 MB. Please choose a smaller file.');
   if(revision!==syllabusRevision)return;
-  $('#upload-message').textContent='Reading the PDF text…';
+  $('#upload-message').textContent='Reading the PDF…';
   const pdfjs=await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.min.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
-  const data=await file.arrayBuffer();const pdf=await pdfjs.getDocument({data}).promise;const pages=[];
+  const data=await file.arrayBuffer();const pdf=await pdfjs.getDocument({data}).promise;const pages=[];let ocrWorker=null;
   for(let i=1;i<=pdf.numPages;i++){
-    const page=await pdf.getPage(i);const content=await page.getTextContent();pages.push(content.items.map(item=>item.str||'').join(' '));
+    if(revision!==syllabusRevision)return;
+    const page=await pdf.getPage(i);const content=await page.getTextContent();let pageText=content.items.map(item=>item.str||'').join(' ').trim();
+    if(pageText.length<30){
+      try{
+        if(!ocrWorker){$('#upload-message').textContent=`Scanned pages detected. Loading OCR…`;const {createWorker}=await import('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js');ocrWorker=await createWorker('eng');}
+        if(revision!==syllabusRevision){await ocrWorker.terminate();return;}
+        $('#upload-message').textContent=`Reading scanned page ${i} of ${pdf.numPages}…`;
+        const viewport=page.getViewport({scale:2});const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);const context=canvas.getContext('2d',{willReadFrequently:true});context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);await page.render({canvas,canvasContext:context,viewport}).promise;
+        pageText=(await ocrWorker.recognize(canvas)).data.text.trim();canvas.width=0;canvas.height=0;
+      }catch(error){if(ocrWorker){await ocrWorker.terminate().catch(()=>{});ocrWorker=null;}if(!pageText)throw new Error('Could not read this scanned PDF. Check your internet connection and try again.');}
+    }
+    pages.push(pageText);
   }
+  if(ocrWorker)await ocrWorker.terminate();
   if(revision!==syllabusRevision)return;
-  const text=pages.join('\n');if(text.trim().length<80)throw new Error('This PDF has no selectable text. It may be scanned; OCR support is not set up yet.');
+  const text=pages.join('\n');if(text.trim().length<80)throw new Error('Not enough readable text was found. Try a clearer scan or a text-based PDF.');
   syllabusText=text.slice(0,100000);syllabusName=file.name;$('#file-label').textContent=file.name;$('#file-subtitle').textContent=`${pdf.numPages} pages · ${(file.size/1024/1024).toFixed(1)} MB`;
-  $('#upload-message').textContent=`Read ${pdf.numPages} pages. The PDF is processed in your browser; extracted text is sent to the AI you select only when you analyze or ask a question.`;
+  $('#upload-message').textContent=`Read ${pdf.numPages} pages${pages.some(t=>t.length<30)?' with OCR for scanned pages':''}. PDF text is processed in your browser and sent to the AI only when you analyze or ask a question.`;
   $('#course-name').value=file.name.replace(/\.pdf$/i,'').replace(/[_-]+/g,' ');
   updateAnalyzeButton();
 }
