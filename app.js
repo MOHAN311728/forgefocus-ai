@@ -174,6 +174,47 @@ function renderAnswer(markdown){
     const item=line.match(/^\s*(?:[-*+]\s+|(\d+)[.)]\s+)(.+)$/);if(item){flush();const ordered=!!item[1];if(!list||list.tagName!==(ordered?'OL':'UL')){list=document.createElement(ordered?'ol':'ul');root.append(list);}const li=document.createElement('li');inline(li,item[2]);list.append(li);continue;}list=null;paragraph.push(line);
   }flush();return root;
 }
+let pdfLibraryPromise=null;
+function loadPdfLibrary(){
+  if(window.html2pdf)return Promise.resolve(window.html2pdf);
+  if(!pdfLibraryPromise)pdfLibraryPromise=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');script.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';script.async=true;
+    script.onload=()=>window.html2pdf?resolve(window.html2pdf):reject(new Error('PDF tool did not load.'));
+    script.onerror=()=>reject(new Error('PDF tool could not load. Check your internet connection and try again.'));
+    document.head.append(script);
+  }).catch(error=>{pdfLibraryPromise=null;throw error;});
+  return pdfLibraryPromise;
+}
+function safeFileName(value){return String(value||'study-answer').normalize('NFKD').replace(/[^\w.-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,70)||'study-answer';}
+async function downloadAnswerPdf(content,title,button){
+  const original=button?.textContent;
+  if(button){button.disabled=true;button.textContent='Preparing PDF…';}
+  try{
+    const html2pdf=await loadPdfLibrary();const page=document.createElement('article');page.className='pdf-export';
+    const heading=document.createElement('h1');heading.textContent=title||currentCourse||'Study answer';page.append(heading);
+    if(currentCourse){const course=document.createElement('p');course.className='pdf-course';course.textContent=currentCourse;page.append(course);}
+    const body=content.cloneNode(true);body.querySelectorAll('.answer-tools').forEach(node=>node.remove());page.append(body);document.body.append(page);
+    try{await html2pdf().set({margin:[14,14,16,14],filename:`${safeFileName(title||currentCourse)}.pdf`,image:{type:'jpeg',quality:.96},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(page).save();}
+    finally{page.remove();}
+    return true;
+  }catch(error){const status=content.closest('.general-qa')?.querySelector('#general-qa-status')||$('#ask-status');if(status)status.textContent='Answer is ready. PDF download failed; check your connection and tap Download as PDF to retry.';return false;}
+  finally{if(button){button.disabled=false;button.textContent=original||'Download as PDF';}}
+}
+function pdfWasRequested(question){const text=String(question||'');return /\b(?:as\s+(?:a\s+)?pdf|in\s+pdf|pdf\s*(?:format|file|version|please|ah+|a|la|venum|kudu|thaa)\b|(?:make|create|generate|download|export|give|send|save)\b.{0,35}\bpdf\b|\bpdf\b.{0,40}\b(?:make|create|generate|download|export|give|send|save|venum|kudu|thaa)\b)/i.test(text);}
+function addAnswerTools(content,{title,question='',context='',autoPdf=false}={}){
+  const tools=document.createElement('section');tools.className='answer-tools';
+  const heading=document.createElement('h4');heading.textContent='Related YouTube videos';tools.append(heading);
+  const queries=[];const cleanQuestion=String(question||context||title||'').trim();const cleanContext=String(context||currentCourse||'').trim();
+  if(cleanQuestion)queries.push({label:`${cleanQuestion.slice(0,80)} explained`,query:`${cleanQuestion} explained`});
+  if(cleanContext)queries.push({label:`${cleanContext.slice(0,65)} tutorial`,query:`${cleanContext} tutorial`});
+  if(cleanQuestion&&cleanContext)queries.push({label:`${cleanQuestion.slice(0,55)} examples`,query:`${cleanContext} ${cleanQuestion} examples`});
+  const unique=queries.filter((item,index,list)=>list.findIndex(other=>other.query.toLowerCase()===item.query.toLowerCase())===index).slice(0,3);
+  const links=document.createElement('div');links.className='video-suggestions';
+  unique.forEach(item=>{const link=document.createElement('a');link.href=`https://www.youtube.com/results?search_query=${encodeURIComponent(item.query)}`;link.target='_blank';link.rel='noopener noreferrer';link.textContent=`▶ ${item.label}`;links.append(link);});
+  tools.append(links);
+  const download=document.createElement('button');download.type='button';download.className='answer-pdf-button';download.textContent='↓ Download as PDF';download.addEventListener('click',()=>downloadAnswerPdf(content,title,download));tools.append(download);content.append(tools);
+  if(autoPdf)setTimeout(()=>downloadAnswerPdf(content,title,download),0);
+}
 $('#visual-button').addEventListener('click',async()=>{
   const button=$('#visual-button');button.disabled=true;button.dataset.busy='1';$('#visual-status').textContent='Creating your study visual…';
   try{
@@ -197,8 +238,8 @@ async function callTutor(type,fields){
     if(requestRevision!==syllabusRevision)return;
     if(type==='analyze'){
       const parsed=extractJson(result.text);currentCourse=$('#course-name').value.trim();renderUnits(parsed);persistCourse(parsed);showText(parsed.course_summary||'Course map generated. Select a unit to create a lesson.',result.provider);
-    }else if(type==='teach'){showText(result.text,result.provider);$('#lesson-title').textContent=fields.unitTitle||'Lesson notes';}
-    else {showText(result.text,result.provider);$('#lesson-title').textContent='Syllabus question';$('#question-input').value='';$('#ask-status').textContent=result.notice||'Answer prepared from the uploaded syllabus.';$('#ask-status').dataset.state='result';}
+    }else if(type==='teach'){showText(result.text,result.provider);$('#lesson-title').textContent=fields.unitTitle||'Lesson notes';addAnswerTools($('#lesson-output .lesson-result'),{title:fields.unitTitle||'Lesson notes',context:fields.unitTitle||currentCourse});}
+    else {showText(result.text,result.provider);$('#lesson-title').textContent='Syllabus question';addAnswerTools($('#lesson-output .lesson-result'),{title:fields.unitTitle||currentCourse||'Syllabus answer',question:fields.question,context:[currentCourse,fields.unitTitle].filter(Boolean).join(' · '),autoPdf:pdfWasRequested(fields.question)});$('#question-input').value='';$('#ask-status').textContent=result.notice||'Answer prepared from the uploaded syllabus.';$('#ask-status').dataset.state='result';}
     $('#upload-message').textContent=result.notice|| (type==='analyze'?'Syllabus analysis complete. Review each unit and select Prepare this lesson.':'AI teaching material is ready.');
   }catch(error){
     if(requestRevision!==syllabusRevision)return;
@@ -229,7 +270,7 @@ async function askGeneralEducation(){
   button.disabled=true;button.dataset.busy='1';answer.hidden=true;status.textContent='Preparing an educational answer…';
   try{
     const result=await api('ask',{course:currentCourse||$('#course-name').value.trim()||'General education',syllabus:syllabusText,unitTitle:'',topics:'',question,wikipediaOptIn:'no'});
-    answer.replaceChildren(renderAnswer(result.text));answer.hidden=false;status.textContent=result.notice||'Answer ready.';$('#general-question').value='';
+    answer.replaceChildren(renderAnswer(result.text));answer.hidden=false;addAnswerTools(answer,{title:currentCourse||'Study answer',question,context:currentCourse||'General education',autoPdf:pdfWasRequested(question)});status.textContent=result.notice||'Answer ready.';$('#general-question').value='';
   }catch{
     status.textContent='AI service is busy or temporarily unavailable. Please try again shortly.';
   }finally{delete button.dataset.busy;updateAnalyzeButton();}

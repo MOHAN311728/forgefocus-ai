@@ -39,3 +39,20 @@
 .account-actions .primary-button{flex:1;min-height:42px}
 .account-actions .outline-button{min-height:40px}
 @media(max-width:600px){.account-chip{max-width:52vw;gap:6px;padding-right:7px}.account-chip .avatar{width:24px;height:24px;flex-basis:24px}.account-chevron{display:none}.account-actions{align-items:stretch;flex-direction:column}.account-actions .outline-button{width:100%}}
+
+/* Answer follow-up resources and one-click PDF exports */
+.answer-tools{display:grid;gap:9px;margin-top:20px;padding:13px 0 3px;border-top:1px solid var(--line)}
+.answer-tools h4{margin:0;color:var(--muted);font:9px var(--mono);letter-spacing:.8px;text-transform:uppercase}
+.video-suggestions{display:flex;flex-wrap:wrap;gap:7px}
+.video-suggestions a{display:inline-flex;align-items:center;max-width:100%;border:1px solid #e0e7e1;border-radius:7px;padding:8px 10px;background:#fbfdfb;color:var(--green);font-size:11px;font-weight:600;text-decoration:none}
+.video-suggestions a:hover{border-color:#9db7a3;background:#f0f7f1}
+.answer-pdf-button{justify-self:start;border:0;border-radius:7px;padding:8px 11px;background:var(--green2);color:var(--green);font-size:11px;font-weight:700}
+.answer-pdf-button:hover{background:#d9ebdd}
+.answer-pdf-button:disabled{opacity:.6;cursor:wait}
+.pdf-export{position:fixed;z-index:-1;left:-10000px;top:0;width:180mm;padding:0;background:#fff;color:#1d2924;font-family:Arial,sans-serif;font-size:11pt;line-height:1.55}
+.pdf-export h1{margin:0 0 4mm;color:#256646;font-size:19pt}
+.pdf-export .pdf-course{margin:0 0 8mm;color:#718078;font-size:10pt}
+.pdf-export .lesson-result,.pdf-export .lesson-output{max-height:none;overflow:visible;color:#1d2924}
+.pdf-export table{width:100%;border-collapse:collapse}
+.pdf-export th,.pdf-export td{border:1px solid #d6ded7;padding:6px;text-align:left;vertical-align:top}
+.pdf-export img{max-width:100%;height:auto}
