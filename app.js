@@ -201,17 +201,49 @@ async function downloadAnswerPdf(content,title,button){
   finally{if(button){button.disabled=false;button.textContent=original||'Download as PDF';}}
 }
 function pdfWasRequested(question){const text=String(question||'');return /\b(?:as\s+(?:a\s+)?pdf|in\s+pdf|pdf\s*(?:format|file|version|please|ah+|a|la|venum|kudu|thaa)\b|(?:make|create|generate|download|export|give|send|save)\b.{0,35}\bpdf\b|\bpdf\b.{0,40}\b(?:make|create|generate|download|export|give|send|save|venum|kudu|thaa)\b)/i.test(text);}
+const VIDEO_LANGUAGES={
+  auto:{label:'Auto from question',code:'',hint:''},
+  en:{label:'English',code:'en',hint:'in English'},ta:{label:'தமிழ் · Tamil',code:'ta',hint:'தமிழில்'},hi:{label:'हिन्दी · Hindi',code:'hi',hint:'हिंदी में'},
+  te:{label:'తెలుగు · Telugu',code:'te',hint:'తెలుగులో'},kn:{label:'ಕನ್ನಡ · Kannada',code:'kn',hint:'ಕನ್ನಡದಲ್ಲಿ'},ml:{label:'മലയാളം · Malayalam',code:'ml',hint:'മലയാളത്തിൽ'},
+  bn:{label:'বাংলা · Bengali',code:'bn',hint:'বাংলায়'},mr:{label:'मराठी · Marathi',code:'mr',hint:'मराठीत'},gu:{label:'ગુજરાતી · Gujarati',code:'gu',hint:'ગુજરાતીમાં'},pa:{label:'ਪੰਜਾਬੀ · Punjabi',code:'pa',hint:'ਪੰਜਾਬੀ ਵਿੱਚ'},ur:{label:'اردو · Urdu',code:'ur',hint:'اردو میں'},
+  es:{label:'Español · Spanish',code:'es',hint:'en español'},fr:{label:'Français · French',code:'fr',hint:'en français'},pt:{label:'Português · Portuguese',code:'pt',hint:'em português'},
+  ar:{label:'العربية · Arabic',code:'ar',hint:'بالعربية'},zh:{label:'中文 · Chinese',code:'zh',hint:'中文'},ja:{label:'日本語 · Japanese',code:'ja',hint:'日本語で'},ko:{label:'한국어 · Korean',code:'ko',hint:'한국어로'},
+  de:{label:'Deutsch · German',code:'de',hint:'auf Deutsch'},it:{label:'Italiano · Italian',code:'it',hint:'in italiano'},id:{label:'Bahasa Indonesia',code:'id',hint:'dalam bahasa Indonesia'},
+  th:{label:'ไทย · Thai',code:'th',hint:'ภาษาไทย'},vi:{label:'Tiếng Việt · Vietnamese',code:'vi',hint:'bằng tiếng Việt'},tr:{label:'Türkçe · Turkish',code:'tr',hint:'Türkçe'},ru:{label:'Русский · Russian',code:'ru',hint:'на русском'}
+};
+function detectVideoLanguage(question){
+  const text=String(question||'');
+  const explicit=text.match(/\b(?:in|using|speak|answer|explain|video in)\s+(tamil|tanglish|hindi|telugu|kannada|malayalam|bengali|bangla|marathi|gujarati|punjabi|urdu|spanish|espanol|french|francais|portuguese|portugues|arabic|chinese|mandarin|japanese|korean|german|italian|indonesian|thai|vietnamese|turkish|russian|english)\b|\b(tamil|tanglish|hindi|telugu|kannada|malayalam|bengali|bangla|marathi|gujarati|punjabi|urdu|spanish|espanol|french|francais|portuguese|portugues|arabic|chinese|mandarin|japanese|korean|german|italian|indonesian|thai|vietnamese|turkish|russian)\s*(?:la|ல|language)\b/i);
+  const name=(explicit?.[1]||explicit?.[2]||'').toLowerCase();
+  const aliases={tanglish:'ta',bangla:'bn',espanol:'es',francais:'fr',portugues:'pt',mandarin:'zh',indonesian:'id'};
+  if(name)return aliases[name]||Object.keys(VIDEO_LANGUAGES).find(code=>code!=='auto'&&VIDEO_LANGUAGES[code].label.toLowerCase().includes(name))||'auto';
+  const scripts=[
+    ['ta',/[\u0B80-\u0BFF]/],['te',/[\u0C00-\u0C7F]/],['kn',/[\u0C80-\u0CFF]/],['ml',/[\u0D00-\u0D7F]/],
+    ['bn',/[\u0980-\u09FF]/],['pa',/[\u0A00-\u0A7F]/],['gu',/[\u0A80-\u0AFF]/],['hi',/[\u0900-\u097F]/],['ur',/[\u0750-\u077F]|[ٹڈڑںھۂےۓ]/],['ar',/[\u0600-\u06FF]/],
+    ['ja',/[\u3040-\u30FF]/],['ko',/[\uAC00-\uD7AF]/],['zh',/[\u3400-\u9FFF]/]
+  ];
+  return scripts.find(([,pattern])=>pattern.test(text))?.[0]||'auto';
+}
 function addAnswerTools(content,{title,question='',context='',autoPdf=false}={}){
   const tools=document.createElement('section');tools.className='answer-tools';
-  const heading=document.createElement('h4');heading.textContent='Related YouTube videos';tools.append(heading);
-  const queries=[];const cleanQuestion=String(question||context||title||'').trim();const cleanContext=String(context||currentCourse||'').trim();
-  if(cleanQuestion)queries.push({label:`${cleanQuestion.slice(0,80)} explained`,query:`${cleanQuestion} explained`});
-  if(cleanContext)queries.push({label:`${cleanContext.slice(0,65)} tutorial`,query:`${cleanContext} tutorial`});
-  if(cleanQuestion&&cleanContext)queries.push({label:`${cleanQuestion.slice(0,55)} examples`,query:`${cleanContext} ${cleanQuestion} examples`});
-  const unique=queries.filter((item,index,list)=>list.findIndex(other=>other.query.toLowerCase()===item.query.toLowerCase())===index).slice(0,3);
+  const heading=document.createElement('h4');heading.textContent='YouTube video suggestions';tools.append(heading);
+  const originalQuestion=String(question||context||title||'').trim(),cleanContext=String(context||currentCourse||'').trim();
+  const languageRow=document.createElement('label');languageRow.className='video-language-row';languageRow.append(document.createTextNode('Video language '));
+  const languageSelect=document.createElement('select');languageSelect.className='video-language-select';languageSelect.setAttribute('aria-label','Choose suggested video language');
+  Object.entries(VIDEO_LANGUAGES).forEach(([code,language])=>{const option=document.createElement('option');option.value=code;option.textContent=language.label;languageSelect.append(option);});
+  languageSelect.value=detectVideoLanguage(question||context);languageRow.append(languageSelect);tools.append(languageRow);
   const links=document.createElement('div');links.className='video-suggestions';
-  unique.forEach(item=>{const link=document.createElement('a');link.href=`https://www.youtube.com/results?search_query=${encodeURIComponent(item.query)}`;link.target='_blank';link.rel='noopener noreferrer';link.textContent=`▶ ${item.label}`;links.append(link);});
-  tools.append(links);
+  const renderVideoLinks=()=>{
+    const language=VIDEO_LANGUAGES[languageSelect.value]||VIDEO_LANGUAGES.auto;
+    const base=originalQuestion||cleanContext||'education';
+    const queries=[{label:base,query:base}];
+    if(languageSelect.value!=='auto'&&language.hint)queries.push({label:`${base} · ${language.label}`,query:`${base} ${language.hint}`});
+    if(cleanContext&&question)queries.push({label:`${cleanContext} · ${String(question).slice(0,60)}`,query:`${cleanContext} ${question}${languageSelect.value!=='auto'&&language.hint?` ${language.hint}`:''}`});
+    if(queries.length<2&&cleanContext&&cleanContext!==base)queries.push({label:cleanContext,query:cleanContext});
+    const unique=queries.filter((item,index,list)=>list.findIndex(other=>other.query.toLowerCase()===item.query.toLowerCase())===index).slice(0,3);links.replaceChildren();
+    unique.forEach(item=>{const link=document.createElement('a');const url=new URL('https://www.youtube.com/results');url.searchParams.set('search_query',item.query);if(language.code)url.searchParams.set('hl',language.code);link.href=url.toString();link.target='_blank';link.rel='noopener noreferrer';link.textContent=`▶ ${item.label.length>85?`${item.label.slice(0,82)}…`:item.label}`;link.title=`Search YouTube in ${language.label}: ${item.query}`;links.append(link);});
+  };
+  languageSelect.addEventListener('change',renderVideoLinks);renderVideoLinks();tools.append(links);
   const download=document.createElement('button');download.type='button';download.className='answer-pdf-button';download.textContent='↓ Download as PDF';download.addEventListener('click',()=>downloadAnswerPdf(content,title,download));tools.append(download);content.append(tools);
   if(autoPdf)setTimeout(()=>downloadAnswerPdf(content,title,download),0);
 }
