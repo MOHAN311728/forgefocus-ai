@@ -11,6 +11,15 @@ async function api(path,fields={}){
   const response=await fetch(`${API}/${path}`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded',...authHeaders()},body:new URLSearchParams({...fields,profile:faculty?.sub||''})});
   const data=await response.json();if(!response.ok)throw new Error(data.error||'The request failed.');return data;
 }
+function friendlyAiError(error){
+  const message=String(error?.message||'').toLowerCase();
+  if(/credit|quota|billing|rate.?limit|429|resource_exhausted|insufficient_quota/.test(message))return 'The connected AI service has reached its usage limit. Check its available quota or try again later.';
+  if(/rejected its api key|does not have access|invalid api key|unauthorized/.test(message))return 'The AI connection needs attention. Ask the faculty administrator to check the service key and access.';
+  if(/not connected|add (gemini|openai)_api_key/.test(message))return 'No AI service is available right now. Ask the faculty administrator to connect an AI service.';
+  if(/model is unavailable|selected ai model/.test(message))return 'The AI service needs a model configuration update. Ask the faculty administrator to check it.';
+  if(/temporar|busy|overload|high demand|timed out|request failed/.test(message))return 'The AI service is busy or temporarily unavailable. Your syllabus is saved; please retry shortly.';
+  return error?.message||'The AI request could not be completed. Please try again.';
+}
 async function getProviders(){
   try{providerReady=await (await fetch(`${API}/providers`,{headers:authHeaders()})).json();$('#server-status').classList.add('online');$('#provider-hint').textContent=(providerReady.openai||providerReady.gemini)?'AI teaching is ready. Syllabus questions use the uploaded course content.':'AI setup is incomplete. Please contact the faculty administrator.';}
   catch{providerReady={};$('#server-status').classList.remove('online');$('#provider-hint').textContent='AI service is temporarily unavailable. Please refresh and try again.';}
@@ -98,7 +107,7 @@ async function extractPdf(file,revision){
     const page=await pdf.getPage(i);const content=await page.getTextContent();let pageText=content.items.map(item=>item.str||'').join(' ').trim();
     if(pageText.length<30){
       try{
-        if(!ocrWorker){$('#upload-message').textContent=`Scanned pages detected. Loading OCR…`;const {createWorker}=await import('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js');ocrWorker=await createWorker('eng');}
+        if(!ocrWorker){const language=$('#ocr-language').value||'eng';$('#upload-message').textContent=`Scanned pages detected. Loading ${$('#ocr-language').selectedOptions[0]?.textContent||'English'} OCR…`;const {createWorker}=await import('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js');ocrWorker=await createWorker(language);}
         if(revision!==syllabusRevision){await ocrWorker.terminate();return;}
         $('#upload-message').textContent=`Reading scanned page ${i} of ${pdf.numPages}…`;
         const viewport=page.getViewport({scale:2});const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);const context=canvas.getContext('2d',{willReadFrequently:true});context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);await page.render({canvas,canvasContext:context,viewport}).promise;
@@ -111,7 +120,7 @@ async function extractPdf(file,revision){
   if(revision!==syllabusRevision)return;
   const text=pages.join('\n');if(text.trim().length<80)throw new Error('Not enough readable text was found. Try a clearer scan or a text-based PDF.');
   syllabusText=text.slice(0,100000);syllabusName=file.name;$('#file-label').textContent=file.name;$('#file-subtitle').textContent=`${pdf.numPages} pages · ${(file.size/1024/1024).toFixed(1)} MB`;
-  $('#upload-message').textContent=`Read ${pdf.numPages} pages${pages.some(t=>t.length<30)?' with OCR for scanned pages':''}. PDF text is processed in your browser and sent to the AI only when you analyze or ask a question.`;
+  $('#upload-message').textContent=`Read ${pdf.numPages} pages${pages.some(t=>t.length<30)?` with ${$('#ocr-language').selectedOptions[0]?.textContent||'English'} OCR for scanned pages`:''}. PDF text is processed in your browser and sent to the AI only when you analyze or ask a question.`;
   $('#course-name').value=file.name.replace(/\.pdf$/i,'').replace(/[_-]+/g,' ');
   updateAnalyzeButton();
 }
@@ -255,7 +264,7 @@ $('#visual-button').addEventListener('click',async()=>{
     const output=$('#lesson-output');output.replaceChildren();const image=document.createElement('img');image.className='study-visual';image.alt=`${$('#visual-type').value} for ${selectedUnit?.title||currentCourse}`;image.src=`data:${result.mimeType};base64,${result.image}`;output.append(image);
     const download=document.createElement('a');download.className='visual-download';download.href=image.src;download.download=`${currentCourse.replace(/[^a-z0-9]+/gi,'-').toLowerCase()}-${$('#visual-type').value.replace(/\s+/g,'-')}.png`;download.textContent='Download study visual';output.append(download);
     $('#lesson-title').textContent=selectedUnit?.title||currentCourse;$('#lesson-provider').textContent='AI';$('#visual-status').textContent='Study visual ready. You can download it above.';
-  }catch(error){$('#visual-status').textContent='The study visual is temporarily unavailable. Please try again shortly.';}
+  }catch(error){$('#visual-status').textContent=friendlyAiError(error);}
   finally{delete button.dataset.busy;updateAnalyzeButton();}
 });
 async function callTutor(type,fields){
@@ -275,7 +284,7 @@ async function callTutor(type,fields){
     $('#upload-message').textContent=result.notice|| (type==='analyze'?'Syllabus analysis complete. Review each unit and select Prepare this lesson.':'AI teaching material is ready.');
   }catch(error){
     if(requestRevision!==syllabusRevision)return;
-    const safeError='AI service is busy or temporarily unavailable. Your syllabus is still saved; please retry in a minute.';
+    const safeError=friendlyAiError(error);
     if(type==='ask'){showText(safeError,'AI');$('#lesson-title').textContent='Syllabus question';$('#ask-status').textContent='Please try again shortly. If this continues, contact the faculty administrator.';$('#ask-status').dataset.state='error';}
     $('#upload-message').textContent=safeError;
   }
@@ -303,8 +312,8 @@ async function askGeneralEducation(){
   try{
     const result=await api('ask',{course:currentCourse||$('#course-name').value.trim()||'General education',syllabus:syllabusText,unitTitle:'',topics:'',question,wikipediaOptIn:'no'});
     answer.replaceChildren(renderAnswer(result.text));answer.hidden=false;addAnswerTools(answer,{title:currentCourse||'Study answer',question,context:currentCourse||'General education',autoPdf:pdfWasRequested(question)});status.textContent=result.notice||'Answer ready.';$('#general-question').value='';
-  }catch{
-    status.textContent='AI service is busy or temporarily unavailable. Please try again shortly.';
+  }catch(error){
+    status.textContent=friendlyAiError(error);
   }finally{delete button.dataset.busy;updateAnalyzeButton();}
 }
 $('#general-ask').addEventListener('click',askGeneralEducation);
