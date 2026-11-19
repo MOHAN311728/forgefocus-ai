@@ -72,3 +72,63 @@
 .pdf-export table{width:100%;border-collapse:collapse}
 .pdf-export th,.pdf-export td{border:1px solid #d6ded7;padding:6px;text-align:left;vertical-align:top}
 .pdf-export img{max-width:100%;height:auto}
+
+/* Nature-led landing experience inspired by the supplied reference. */
+:root{--ink:#203128;--muted:#697c70;--green:#285b43;--green2:#e6eee3;--line:#e2e7de;--paper:#fffefa;--bg:#f5f5ef;--gold:#ad8352}
+body{background:var(--bg);color:var(--ink)}
+.app{grid-template-columns:224px minmax(0,1fr);background:var(--bg)}
+.sidebar{background:#f8f8f3;border-right:1px solid #e7e9e1;padding:24px 16px 16px}
+.sidebar-brand{padding-bottom:22px}
+.sidebar-brand .brand-mark{border-radius:50%;background:#285b43}
+.nav-item{border-radius:999px;padding:11px 13px}
+.nav-item:hover,.nav-item.active{background:#e8efe5;color:#285b43}
+.main-content{max-width:1620px;padding:0 40px 24px}
+.topbar{position:relative;z-index:3;height:66px;margin:13px 0 0;padding:0 17px;border:1px solid #e7e9e1;border-radius:999px;background:rgba(255,254,250,.94);box-shadow:0 8px 28px #2d402c0a}
+.top-actions{gap:10px}
+.connection{padding:7px 10px;border-radius:999px;background:#f1f4ed}
+.outline-button{border-radius:999px;padding:9px 14px;background:#fffefa}
+.account-chip{border-color:#e6e9e1;background:#fffefa;border-radius:999px}
+.welcome{position:relative;isolation:isolate;min-height:500px;margin:19px 0 28px;padding:60px 30px 74px;justify-content:center;overflow:hidden;border:1px solid #dfe7dc;border-radius:26px;background:linear-gradient(180deg,#f1f1e9 0%,#e9eee3 53%,#b8c9b1 100%);box-shadow:0 18px 50px #344a3610}
+.welcome::before,.welcome::after{position:absolute;z-index:-1;content:"";pointer-events:none}
+.welcome::before{inset:auto -2% 0;height:49%;background:linear-gradient(155deg,#8ca38b 0%,#708c76 58%,#617c68 100%);clip-path:polygon(0 100%,0 53%,9% 35%,18% 44%,28% 6%,39% 58%,50% 20%,61% 60%,73% 0,84% 53%,93% 29%,100% 45%,100% 100%)}
+.welcome::after{inset:auto -3% -3%;height:33%;background:radial-gradient(ellipse at 16% 100%,#71865e 0 22%,transparent 22.5%),radial-gradient(ellipse at 75% 105%,#6c835c 0 28%,transparent 28.5%),linear-gradient(170deg,#9baa74,#607751);clip-path:polygon(0 45%,14% 27%,28% 51%,43% 25%,58% 53%,73% 27%,88% 51%,100% 35%,100% 100%,0 100%)}
+.welcome>div:first-child{position:relative;z-index:1;width:min(740px,100%);text-align:center}
+.welcome .eyebrow{display:inline-flex;margin:0 0 20px;padding:7px 12px;border:1px solid #dfe5d9;border-radius:999px;background:#fffefaad;color:#526d58;letter-spacing:1px}
+.welcome h1{font-size:clamp(42px,5.5vw,70px);line-height:1.04;letter-spacing:-3.5px;color:#1e2d23;text-wrap:balance}
+.welcome h1 em{color:#3b6947}
+.welcome>div>p:last-of-type{max-width:520px;margin:18px auto 0;color:#526455;font-size:16px;line-height:1.65}
+.welcome-art{position:absolute;top:22px;right:24px;z-index:2;width:auto;height:auto;padding:9px 13px;border:1px solid #ffffff9c;border-radius:999px;background:#fffdf0bd;backdrop-filter:blur(8px);color:#345e40}
+.welcome-art span{font-size:18px}
+.welcome-art small{font-size:8px}
+.welcome-links{display:flex;justify-content:center;align-items:center;gap:17px;margin-top:24px}
+.welcome-primary,.welcome-secondary{display:inline-flex;min-height:43px;align-items:center;justify-content:center;gap:16px;padding:0 19px;border-radius:999px;text-decoration:none;font-size:12px;font-weight:700}
+.welcome-primary{background:#234d37;color:white;box-shadow:0 8px 20px #234d3730}
+.welcome-primary span{font-size:16px}
+.welcome-primary:hover{background:#193c2a;transform:translateY(-1px)}
+.welcome-secondary{border:1px solid #fff;background:#ffffffa6;color:#31553b}
+.upload-section,.general-qa,.units-column,.lesson-column,.course-library>.workspace-title,.course-empty{border-radius:18px}
+.card{border-color:#e6e9e1;background:var(--paper);box-shadow:0 10px 34px #31432e09}
+.upload-section{padding:24px}
+.section-heading h2,.workspace-title h2{font-size:21px;letter-spacing:-.7px}
+.drop-zone{min-height:210px;border-color:#b9c9b7;border-radius:14px;background:linear-gradient(145deg,#fbfcf8,#f4f7f0)}
+.drop-zone:hover,.drop-zone.dragover{border-color:#557c5e;background:#edf3e8}
+.upload-icon{width:42px;height:42px;border-radius:50%;background:#e6eee3}
+.course-fields input,.course-fields select,.ask-row input,.settings-dialog input,.answer-language-select,.visual-select{border-radius:10px;border-color:#dfe5dc;background:#fffefa}
+.primary-button{min-height:43px;border-radius:999px;background:#285b43}
+.primary-button:hover{background:#1f4935}
+.general-qa{margin-top:18px;padding:23px;border:1px solid #e6e9e1;background:var(--paper);box-shadow:0 10px 34px #31432e09}
+.general-qa .section-heading{margin-bottom:9px}
+.general-qa .section-heading h2{font-size:21px;letter-spacing:-.7px}
+.ask-button{min-height:42px;border-radius:999px;padding:0 17px;background:#e6eee3;color:#285b43}
+.ask-button:hover:not(:disabled){background:#d5e4d3}
+.course-workspace{margin-top:26px}
+.learning-layout{gap:16px}
+.units-column,.lesson-column{padding:20px;border:1px solid #e6e9e1;background:var(--paper);box-shadow:0 10px 34px #31432e09}
+.unit-card{border-radius:13px}
+.lesson-output{border-radius:12px;background:#fbfcf8}
+.answer-tools{border-radius:12px;background:#fbfcf8}
+.settings-dialog,.account-dialog{border-radius:20px;background:#fffefa}
+footer{padding:17px 0;color:#8b9689}
+@media(max-width:1000px){.app{grid-template-columns:195px minmax(0,1fr)}.main-content{padding:0 24px 18px}.welcome{min-height:430px}}
+@media(max-width:760px){.app{grid-template-columns:1fr}.sidebar{background:#f8f8f3}.main-content{padding:0 14px 18px}.topbar{height:auto;min-height:58px;margin-top:8px;padding:8px 11px;border-radius:17px;gap:8px}.topbar>div:first-child{display:none}.top-actions{width:100%;justify-content:flex-end}.welcome{min-height:430px;margin:12px 0 18px;padding:68px 19px 70px;border-radius:20px}.welcome h1{font-size:clamp(39px,10vw,55px);letter-spacing:-2.4px}.welcome>div>p:last-of-type{font-size:14px}.welcome-art{top:13px;right:13px}.upload-section,.general-qa{padding:17px}.upload-grid,.learning-layout{grid-template-columns:1fr}.drop-zone{min-height:165px}.section-heading h2,.general-qa .section-heading h2{font-size:18px}.welcome-links{gap:9px}.welcome-primary,.welcome-secondary{padding:0 14px;font-size:11px}}
+@media(max-width:400px){.welcome-links{align-items:stretch;flex-direction:column}.welcome-primary,.welcome-secondary{width:100%}.account-chip{max-width:48vw}}
