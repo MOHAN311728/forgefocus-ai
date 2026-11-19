@@ -424,7 +424,7 @@ bool verifyGoogleIdToken(const std::string& token) {
     if (token.empty() || token.size() > 5000 || clientId.empty()) return false;
     int status = -1;
     const std::string response = runCurl(
-        "https://oauth2.googleapis.com/tokeninfo?id_token=" + urlEncode(token), "", {}, "", status, 5, 0);
+        "https://oauth2.googleapis.com/tokeninfo?id_token=" + urlEncode(token), "", {}, "", status, 3, 0);
     if (status != 0) return false;
     const std::string issuer = jsonStringField(response, "iss");
     return jsonScalarField(response, "aud") == clientId &&
@@ -465,7 +465,7 @@ AiCall askProviderOnce(const std::string& provider, const std::string& prompt, c
     std::string model, endpoint, request;
     std::vector<std::string> headers{"Content-Type: application/json"};
     if (provider == "gemini") {
-        model = modelOverride.empty() ? fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.8-flash") : modelOverride;
+        model = modelOverride.empty() ? fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.5-flash-lite") : modelOverride;
         endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
         headers.push_back("x-goog-api-key: " + key);
         request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "3000" : (type == "analyze" ? "5000" : "6500")) + "}}";
@@ -478,7 +478,7 @@ AiCall askProviderOnce(const std::string& provider, const std::string& prompt, c
     int status = -1;
     // A question gets one bounded provider attempt. The caller may make one bounded fallback attempt.
     const std::string response = (type == "ask" || type == "analyze")
-        ? runCurl(endpoint, key, headers, request, status, type == "analyze" ? 15 : 17, 0)
+        ? runCurl(endpoint, key, headers, request, status, 12, 0)
         : runCurl(endpoint, key, headers, request, status);
     if (status != 0) {
         const auto detail = jsonStringField(response, "message");
@@ -522,22 +522,24 @@ bool canTryAnotherGeminiModel(const AiCall& result) {
 AiCall retryGeminiModels(AiCall result, const std::string& prompt, const std::string& type,
                          const std::map<std::string, std::string>& keys) {
     if (result.ready || !canTryAnotherGeminiModel(result)) return result;
-    const auto configured = fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.8-flash");
-    for (const auto& model : {std::string("gemini-3.6-flash"), std::string("gemini-3.5-flash-lite")}) {
+    const auto configured = fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.5-flash-lite");
+    int tried = 0;
+    for (const auto& model : {std::string("gemini-3.6-flash"), std::string("gemini-3.5-flash")}) {
         if (model == configured) continue;
         result = askProviderOnce("gemini", prompt, type, keys, model);
+        ++tried;
         if (result.ready || !canTryAnotherGeminiModel(result)) break;
+        if ((type == "ask" || type == "analyze") && tried >= 1) break;
     }
     return result;
 }
 
 AiCall askProvider(const std::string& prompt, const std::string& type) {
     const auto keys = loadAiKeys();
-    // Gemini analyzes every syllabus and prepares unit lessons; text Q&A prefers the stronger answer model.
-    const std::string preferred = (type == "analyze" || type == "teach") ? "gemini" :
-        (configuredProviderKey("openai", keys).empty() ? "gemini" : "openai");
+    // Prefer the connected Gemini service for affordable classroom use; OpenAI remains an automatic backup.
+    const std::string preferred = configuredProviderKey("gemini", keys).empty() ? "openai" : "gemini";
     auto result = askProviderOnce(preferred, prompt, type, keys);
-    if (!result.ready && preferred == "gemini" && type != "ask" && type != "analyze") result = retryGeminiModels(result, prompt, type, keys);
+    if (!result.ready && preferred == "gemini") result = retryGeminiModels(result, prompt, type, keys);
     if (result.ready || !result.fallbackEligible) return result;
     const std::string alternate = preferred == "openai" ? "gemini" : "openai";
     if (configuredProviderKey(alternate, keys).empty()) {
@@ -545,7 +547,7 @@ AiCall askProvider(const std::string& prompt, const std::string& type) {
         return result;
     }
     auto fallback = askProviderOnce(alternate, prompt, type, keys);
-    if (!fallback.ready && alternate == "gemini" && type != "ask" && type != "analyze") fallback = retryGeminiModels(fallback, prompt, type, keys);
+    if (!fallback.ready && alternate == "gemini") fallback = retryGeminiModels(fallback, prompt, type, keys);
     if (!fallback.ready) {
         fallback.message = "Both answer attempts failed. First attempt: " + result.message + " Backup attempt: " + fallback.message;
         return fallback;
