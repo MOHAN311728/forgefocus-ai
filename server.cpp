@@ -300,7 +300,8 @@ bool writeAllToFd(int fd, const std::string& content) {
 }
 
 std::string runCurl(const std::string& endpoint, const std::string& apiKey,
-                    const std::vector<std::string>& headers, const std::string& body, int& exitCode) {
+                    const std::vector<std::string>& headers, const std::string& body, int& exitCode,
+                    int timeoutSeconds = 75, int retries = 1) {
     char bodyPath[] = "/tmp/forgefocus-body-XXXXXX";
     int bodyFd = mkstemp(bodyPath);
     if (bodyFd < 0) { exitCode = -1; return "Could not create a temporary AI request."; }
@@ -313,7 +314,10 @@ std::string runCurl(const std::string& endpoint, const std::string& apiKey,
     int configFd = mkstemp(configPath);
     if (configFd < 0) { unlink(bodyPath); exitCode = -1; return "Could not create a private AI connection file."; }
     fchmod(configFd, S_IRUSR | S_IWUSR);
-    std::string config = "silent\nshow-error\nmax-time = 75\nconnect-timeout = 12\nretry = 1\nretry-delay = 1\nretry-max-time = 5\nfail-with-body\n";
+    const int connectTimeout = std::min(5, timeoutSeconds);
+    std::string config = "silent\nshow-error\nmax-time = " + std::to_string(timeoutSeconds) +
+        "\nconnect-timeout = " + std::to_string(connectTimeout) +
+        "\nretry = " + std::to_string(retries) + "\nretry-delay = 1\nretry-max-time = 5\nfail-with-body\n";
     config += "url = " + curlConfigQuote(endpoint) + "\n";
     for (const auto& header : headers) config += "header = " + curlConfigQuote(header) + "\n";
     if (!body.empty()) config += "data-binary = " + curlConfigQuote("@" + std::string(bodyPath)) + "\n";
@@ -464,15 +468,18 @@ AiCall askProviderOnce(const std::string& provider, const std::string& prompt, c
         model = modelOverride.empty() ? fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.8-flash") : modelOverride;
         endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
         headers.push_back("x-goog-api-key: " + key);
-        request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "5000" : "6500") + "}}";
+        request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "3000" : "6500") + "}}";
     } else {
         model = fileSetting("FORGEFOCUS_OPENAI_MODEL", "gpt-6.1-sol");
         endpoint = "https://api.openai.com/v1/responses";
         headers.push_back("Authorization: Bearer " + key);
-        request = "{\"model\":\"" + jsonEscape(model) + "\",\"instructions\":\"You are ForgeFocus AI, a careful and accurate college teaching assistant. Follow the syllabus for course-specific answers and clearly label general background.\",\"input\":\"" + jsonEscape(prompt) + "\",\"reasoning\":{\"effort\":\"medium\"},\"max_output_tokens\":" + (type == "ask" ? "5000" : "6500") + "}";
+        request = "{\"model\":\"" + jsonEscape(model) + "\",\"instructions\":\"You are ForgeFocus AI, a careful and accurate college teaching assistant. Follow the syllabus for course-specific answers and clearly label general background.\",\"input\":\"" + jsonEscape(prompt) + "\",\"reasoning\":{\"effort\":\"" + (type == "ask" ? "low" : "medium") + "\"},\"max_output_tokens\":" + (type == "ask" ? "3000" : "6500") + "}";
     }
     int status = -1;
-    const std::string response = runCurl(endpoint, key, headers, request, status);
+    // A question gets one bounded provider attempt. The caller may make one bounded fallback attempt.
+    const std::string response = type == "ask"
+        ? runCurl(endpoint, key, headers, request, status, 17, 0)
+        : runCurl(endpoint, key, headers, request, status);
     if (status != 0) {
         const auto detail = jsonStringField(response, "message");
         std::string lower = response + " " + detail;
@@ -494,7 +501,7 @@ AiCall askProviderOnce(const std::string& provider, const std::string& prompt, c
             return {false, "The AI provider rejected its API key or this key does not have access. Check the key in Render Environment.", "", "", true};
         if (response.find("404") != std::string::npos)
             return {false, "The selected AI model is unavailable for this provider account. Check the provider model setting.", "", "", true};
-        return {false, "The AI provider request failed after retries. Check provider status, API key, and usage quota, then try again.", ""};
+        return {false, type == "ask" ? "The AI provider request failed. Check provider status, API key, and usage quota, then try again." : "The AI provider request failed after retries. Check provider status, API key, and usage quota, then try again.", ""};
     }
     std::string text = provider == "openai" ? jsonStringField(response, "output_text") : "";
     if (text.empty()) text = jsonStringField(response, "text");
@@ -530,7 +537,7 @@ AiCall askProvider(const std::string& prompt, const std::string& type) {
     const std::string preferred = (type == "analyze" || type == "teach") ? "gemini" :
         (configuredProviderKey("openai", keys).empty() ? "gemini" : "openai");
     auto result = askProviderOnce(preferred, prompt, type, keys);
-    if (!result.ready && preferred == "gemini") result = retryGeminiModels(result, prompt, type, keys);
+    if (!result.ready && preferred == "gemini" && type != "ask") result = retryGeminiModels(result, prompt, type, keys);
     if (result.ready || !result.fallbackEligible) return result;
     const std::string alternate = preferred == "openai" ? "gemini" : "openai";
     if (configuredProviderKey(alternate, keys).empty()) {
@@ -538,7 +545,7 @@ AiCall askProvider(const std::string& prompt, const std::string& type) {
         return result;
     }
     auto fallback = askProviderOnce(alternate, prompt, type, keys);
-    if (!fallback.ready && alternate == "gemini") fallback = retryGeminiModels(fallback, prompt, type, keys);
+    if (!fallback.ready && alternate == "gemini" && type != "ask") fallback = retryGeminiModels(fallback, prompt, type, keys);
     if (!fallback.ready) { fallback.message = "AI service is busy or temporarily unavailable. Please try again in a minute."; return fallback; }
     fallback.notice = "Your syllabus answer is ready.";
     return fallback;
@@ -549,7 +556,7 @@ std::string wikipediaContext(const std::string& question) {
     int searchStatus = -1;
     const std::string searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=" +
         urlEncode(question) + "&format=json&utf8=1&srlimit=1";
-    const std::string search = runCurl(searchUrl, "", {"User-Agent: ForgeFocusAI/1.0 (educational reference integration)"}, "", searchStatus);
+    const std::string search = runCurl(searchUrl, "", {"User-Agent: ForgeFocusAI/1.0 (educational reference integration)"}, "", searchStatus, 1, 0);
     if (searchStatus != 0) return "";
     const std::string title = jsonStringField(search, "title");
     if (title.empty()) return "";
@@ -557,7 +564,7 @@ std::string wikipediaContext(const std::string& question) {
     std::replace(pageTitle.begin(), pageTitle.end(), ' ', '_');
     const std::string summaryUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/" + urlEncode(pageTitle);
     int summaryStatus = -1;
-    const std::string summary = runCurl(summaryUrl, "", {"User-Agent: ForgeFocusAI/1.0 (educational reference integration)"}, "", summaryStatus);
+    const std::string summary = runCurl(summaryUrl, "", {"User-Agent: ForgeFocusAI/1.0 (educational reference integration)"}, "", summaryStatus, 1, 0);
     if (summaryStatus != 0) return "";
     std::string extract = jsonStringField(summary, "extract");
     const std::string canonical = jsonStringField(summary, "canonicalurl");
