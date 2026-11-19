@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=build /app/forgefocus-ai-server ./forgefocus-ai-server
 COPY index.html style.css app.js config.js ./
+COPY assets ./assets
 RUN chown -R forgefocus:forgefocus /app
 USER forgefocus
 ENV FORGEFOCUS_HOSTED=1

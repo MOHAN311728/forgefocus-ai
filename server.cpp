@@ -671,7 +671,9 @@ Response handleRequest(const std::string& method, const std::string& rawPath, co
             {"/index.html", "text/html; charset=utf-8"},
             {"/style.css", "text/css; charset=utf-8"},
             {"/app.js", "application/javascript; charset=utf-8"},
-            {"/config.js", "application/javascript; charset=utf-8"}
+            {"/config.js", "application/javascript; charset=utf-8"},
+            {"/assets/day-background.png", "image/png"},
+            {"/assets/space-background.png", "image/png"}
         };
         const auto asset = publicFiles.find(path);
         if (asset != publicFiles.end()) {

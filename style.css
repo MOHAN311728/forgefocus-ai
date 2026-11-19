@@ -181,3 +181,15 @@ footer{padding:17px 0;color:#8b9689}
 @media(max-width:1000px){.app{grid-template-columns:195px minmax(0,1fr)}.main-content{padding:0 24px 18px}.welcome{min-height:430px}}
 @media(max-width:760px){.app{grid-template-columns:1fr}.sidebar{background:#f8f8f3}.main-content{padding:0 14px 18px}.topbar{height:auto;min-height:58px;margin-top:8px;padding:8px 11px;border-radius:17px;gap:8px}.topbar>div:first-child{display:none}.top-actions{width:100%;justify-content:flex-end}.welcome{min-height:430px;margin:12px 0 18px;padding:68px 19px 70px;border-radius:20px}.welcome h1{font-size:clamp(39px,10vw,55px);letter-spacing:-2.4px}.welcome>div>p:last-of-type{font-size:14px}.welcome-art{top:13px;right:13px}.upload-section,.general-qa{padding:17px}.upload-grid,.learning-layout{grid-template-columns:1fr}.drop-zone{min-height:165px}.section-heading h2,.general-qa .section-heading h2{font-size:18px}.welcome-links{gap:9px}.welcome-primary,.welcome-secondary{padding:0 14px;font-size:11px}}
 @media(max-width:400px){.welcome-links{align-items:stretch;flex-direction:column}.welcome-primary,.welcome-secondary{width:100%}.account-chip{max-width:48vw}}
+
+/* Match the page wallpaper to the visitor's selected theme. */
+body{background-image:linear-gradient(rgba(246,245,237,.36),rgba(246,245,237,.36)),url('/assets/day-background.png');background-position:center 48%;background-size:cover;background-attachment:fixed}
+.app{background:transparent}
+.sidebar{background:rgba(248,248,243,.9);backdrop-filter:blur(12px)}
+.welcome{background:linear-gradient(rgba(244,246,239,.32),rgba(196,211,188,.38)),url('/assets/day-background.png') center 46%/cover}
+.welcome::before,.welcome::after{opacity:.2}
+html[data-theme="dark"] body{background-image:linear-gradient(rgba(7,10,14,.47),rgba(7,10,14,.54)),url('/assets/space-background.png');background-position:center 44%;background-size:cover;background-attachment:fixed}
+html[data-theme="dark"] .app{background:transparent}
+html[data-theme="dark"] .sidebar{background:rgba(20,30,24,.9);backdrop-filter:blur(12px)}
+html[data-theme="dark"] .welcome{background:linear-gradient(rgba(8,12,17,.42),rgba(8,12,17,.55)),url('/assets/space-background.png') center 43%/cover}
+html[data-theme="dark"] .welcome::before,html[data-theme="dark"] .welcome::after{opacity:.1}
