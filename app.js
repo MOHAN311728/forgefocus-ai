@@ -178,10 +178,19 @@ function renderAnswer(markdown){
   const inline=(parent,value)=>{const re=/(\*\*|__)(.+?)\1|`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;let at=0,m;while((m=re.exec(value))){parent.append(document.createTextNode(value.slice(at,m.index)));if(m[3]){const code=document.createElement('code');code.textContent=m[3];parent.append(code);}else if(m[4]){const a=document.createElement('a');a.textContent=m[4];a.href=m[5];a.target='_blank';a.rel='noopener noreferrer';parent.append(a);}else{const strong=document.createElement('strong');strong.textContent=m[2];parent.append(strong);}at=re.lastIndex;}parent.append(document.createTextNode(value.slice(at)));};
   const lines=String(markdown||'').replace(/\\n/g,'\n').split(/\r?\n/);let list=null,table=null,paragraph=[];
   const flush=()=>{if(paragraph.length){const p=document.createElement('p');inline(p,paragraph.join(' '));root.append(p);paragraph=[];}};
-  for(let i=0;i<lines.length;i++){const line=lines[i].trim();if(!line){flush();list=null;continue;}if(/^\|.*\|$/.test(line)){flush();const cells=s=>s.trim().replace(/^\||\|$/g,'').split('|').map(x=>x.trim());if(/^[|\s:–-]+$/.test(line))continue;if(!table){table=document.createElement('table');const thead=document.createElement('thead'),tr=document.createElement('tr');cells(line).forEach(c=>{const th=document.createElement('th');inline(th,c);tr.append(th);});thead.append(tr);table.append(thead,document.createElement('tbody'));root.append(table);}else{const tr=document.createElement('tr');cells(line).forEach(c=>{const td=document.createElement('td');inline(td,c);tr.append(td);});table.tBodies[0].append(tr);}continue;}table=null;
+  for(let i=0;i<lines.length;i++){const line=lines[i].trim();if(line.startsWith('```')){flush();list=null;const language=line.slice(3).trim().toLowerCase(),codeLines=[];while(i+1<lines.length&&!lines[i+1].trim().startsWith('```'))codeLines.push(lines[++i]);if(i+1<lines.length)i++;const pre=document.createElement('pre');pre.className=language==='mermaid'?'mermaid-study-diagram':'answer-code';pre.textContent=codeLines.join('\n');root.append(pre);continue;}if(!line){flush();list=null;continue;}if(/^\|.*\|$/.test(line)){flush();const cells=s=>s.trim().replace(/^\||\|$/g,'').split('|').map(x=>x.trim());if(/^[|\s:–-]+$/.test(line))continue;if(!table){table=document.createElement('table');const thead=document.createElement('thead'),tr=document.createElement('tr');cells(line).forEach(c=>{const th=document.createElement('th');inline(th,c);tr.append(th);});thead.append(tr);table.append(thead,document.createElement('tbody'));root.append(table);}else{const tr=document.createElement('tr');cells(line).forEach(c=>{const td=document.createElement('td');inline(td,c);tr.append(td);});table.tBodies[0].append(tr);}continue;}table=null;
     const h=line.match(/^(#{1,4})\s+(.+)$/);if(h){flush();list=null;const el=document.createElement(h[1].length<=2?'h3':'h4');inline(el,h[2].replace(/\s+#+$/,''));root.append(el);continue;}if(/^[-*_]{3,}$/.test(line)){flush();list=null;root.append(document.createElement('hr'));continue;}
     const item=line.match(/^\s*(?:[-*+]\s+|(\d+)[.)]\s+)(.+)$/);if(item){flush();const ordered=!!item[1];if(!list||list.tagName!==(ordered?'OL':'UL')){list=document.createElement(ordered?'ol':'ul');root.append(list);}const li=document.createElement('li');inline(li,item[2]);list.append(li);continue;}list=null;paragraph.push(line);
   }flush();return root;
+}
+let mermaidPromise=null,mermaidInitialized=false,diagramCounter=0;
+async function renderStudyDiagrams(container){
+  const nodes=[...container.querySelectorAll('.mermaid-study-diagram')];if(!nodes.length)return;
+  try{
+    if(!mermaidPromise)mermaidPromise=import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs').then(module=>module.default);
+    const mermaid=await mermaidPromise;if(!mermaidInitialized){mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'});mermaidInitialized=true;}
+    for(const node of nodes){try{const {svg}=await mermaid.render(`forgefocus-diagram-${++diagramCounter}`,node.textContent);const wrapper=document.createElement('div');wrapper.className='study-diagram';wrapper.innerHTML=svg;node.replaceWith(wrapper);}catch{node.classList.add('diagram-fallback');node.setAttribute('aria-label','Diagram code could not be rendered; readable source shown below.');}}
+  }catch{nodes.forEach(node=>node.classList.add('diagram-fallback'));}
 }
 let pdfLibraryPromise=null;
 function loadPdfLibrary(){
@@ -220,6 +229,10 @@ const VIDEO_LANGUAGES={
   de:{label:'Deutsch · German',code:'de',hint:'auf Deutsch'},it:{label:'Italiano · Italian',code:'it',hint:'in italiano'},id:{label:'Bahasa Indonesia',code:'id',hint:'dalam bahasa Indonesia'},
   th:{label:'ไทย · Thai',code:'th',hint:'ภาษาไทย'},vi:{label:'Tiếng Việt · Vietnamese',code:'vi',hint:'bằng tiếng Việt'},tr:{label:'Türkçe · Turkish',code:'tr',hint:'Türkçe'},ru:{label:'Русский · Russian',code:'ru',hint:'на русском'}
 };
+const ANSWER_LANGUAGES=[['auto','Auto — match my question'],['en','English'],['ta','தமிழ் · Tamil'],['hi','हिन्दी · Hindi'],['te','తెలుగు · Telugu'],['kn','ಕನ್ನಡ · Kannada'],['ml','മലയാളം · Malayalam'],['bn','বাংলা · Bengali'],['mr','मराठी · Marathi'],['gu','ગુજરાતી · Gujarati'],['pa','ਪੰਜਾਬੀ · Punjabi'],['ur','اردو · Urdu'],['ar','العربية · Arabic'],['fr','Français · French'],['es','Español · Spanish'],['pt','Português · Portuguese']];
+for(const selector of ['#general-answer-language','#question-answer-language']){
+  const select=$(selector);ANSWER_LANGUAGES.forEach(([code,label])=>{const option=document.createElement('option');option.value=code;option.textContent=label;select.append(option);});
+}
 function detectVideoLanguage(question){
   const text=String(question||'');
   const explicit=text.match(/\b(?:in|using|speak|answer|explain|video in)\s+(tamil|tanglish|hindi|telugu|kannada|malayalam|bengali|bangla|marathi|gujarati|punjabi|urdu|spanish|espanol|french|francais|portuguese|portugues|arabic|chinese|mandarin|japanese|korean|german|italian|indonesian|thai|vietnamese|turkish|russian|english)\b|\b(tamil|tanglish|hindi|telugu|kannada|malayalam|bengali|bangla|marathi|gujarati|punjabi|urdu|spanish|espanol|french|francais|portuguese|portugues|arabic|chinese|mandarin|japanese|korean|german|italian|indonesian|thai|vietnamese|turkish|russian)\s*(?:la|ல|language)\b/i);
@@ -233,14 +246,14 @@ function detectVideoLanguage(question){
   ];
   return scripts.find(([,pattern])=>pattern.test(text))?.[0]||'auto';
 }
-function addAnswerTools(content,{title,question='',context='',autoPdf=false}={}){
+function addAnswerTools(content,{title,question='',context='',autoPdf=false,answerLanguage='auto'}={}){
   const tools=document.createElement('section');tools.className='answer-tools';
   const heading=document.createElement('h4');heading.textContent='YouTube video suggestions';tools.append(heading);
   const originalQuestion=String(question||context||title||'').trim(),cleanContext=String(context||currentCourse||'').trim();
   const languageRow=document.createElement('label');languageRow.className='video-language-row';languageRow.append(document.createTextNode('Video language '));
   const languageSelect=document.createElement('select');languageSelect.className='video-language-select';languageSelect.setAttribute('aria-label','Choose suggested video language');
   Object.entries(VIDEO_LANGUAGES).forEach(([code,language])=>{const option=document.createElement('option');option.value=code;option.textContent=language.label;languageSelect.append(option);});
-  languageSelect.value=detectVideoLanguage(question||context);languageRow.append(languageSelect);tools.append(languageRow);
+  languageSelect.value=VIDEO_LANGUAGES[answerLanguage]?.code?answerLanguage:detectVideoLanguage(question||context);languageRow.append(languageSelect);tools.append(languageRow);
   const links=document.createElement('div');links.className='video-suggestions';
   const renderVideoLinks=()=>{
     const language=VIDEO_LANGUAGES[languageSelect.value]||VIDEO_LANGUAGES.auto;
@@ -253,7 +266,8 @@ function addAnswerTools(content,{title,question='',context='',autoPdf=false}={})
     unique.forEach(item=>{const link=document.createElement('a');const url=new URL('https://www.youtube.com/results');url.searchParams.set('search_query',item.query);if(language.code)url.searchParams.set('hl',language.code);link.href=url.toString();link.target='_blank';link.rel='noopener noreferrer';link.textContent=`▶ ${item.label.length>85?`${item.label.slice(0,82)}…`:item.label}`;link.title=`Search YouTube in ${language.label}: ${item.query}`;links.append(link);});
   };
   languageSelect.addEventListener('change',renderVideoLinks);renderVideoLinks();tools.append(links);
-  const download=document.createElement('button');download.type='button';download.className='answer-pdf-button';download.textContent='↓ Download as PDF';download.addEventListener('click',()=>downloadAnswerPdf(content,title,download));tools.append(download);content.append(tools);
+  const download=document.createElement('button');download.type='button';download.className='answer-pdf-button';download.textContent='↓ Download as PDF';download.addEventListener('click',()=>downloadAnswerPdf(content,title,download));tools.append(download);
+  const layout=document.createElement('div');layout.className='answer-with-resources';const answerBody=document.createElement('div');answerBody.className='answer-main';while(content.firstChild)answerBody.append(content.firstChild);layout.append(answerBody,tools);content.append(layout);renderStudyDiagrams(answerBody);
   if(autoPdf)setTimeout(()=>downloadAnswerPdf(content,title,download),0);
 }
 $('#visual-button').addEventListener('click',async()=>{
@@ -280,7 +294,7 @@ async function callTutor(type,fields){
     if(type==='analyze'){
       const parsed=extractJson(result.text);currentCourse=$('#course-name').value.trim();renderUnits(parsed);persistCourse(parsed);showText(parsed.course_summary||'Course map generated. Select a unit to create a lesson.',result.provider);
     }else if(type==='teach'){showText(result.text,result.provider);$('#lesson-title').textContent=fields.unitTitle||'Lesson notes';addAnswerTools($('#lesson-output .lesson-result'),{title:fields.unitTitle||'Lesson notes',context:fields.unitTitle||currentCourse});}
-    else {showText(result.text,result.provider);$('#lesson-title').textContent='Syllabus question';addAnswerTools($('#lesson-output .lesson-result'),{title:fields.unitTitle||currentCourse||'Syllabus answer',question:fields.question,context:[currentCourse,fields.unitTitle].filter(Boolean).join(' · '),autoPdf:pdfWasRequested(fields.question)});$('#question-input').value='';$('#ask-status').textContent=result.notice||'Answer prepared from the uploaded syllabus.';$('#ask-status').dataset.state='result';}
+    else {showText(result.text,result.provider);$('#lesson-title').textContent='Syllabus question';addAnswerTools($('#lesson-output .lesson-result'),{title:fields.unitTitle||currentCourse||'Syllabus answer',question:fields.question,context:[currentCourse,fields.unitTitle].filter(Boolean).join(' · '),autoPdf:pdfWasRequested(fields.question),answerLanguage:fields.answerLanguage});$('#question-input').value='';$('#ask-status').textContent=result.notice||'Answer prepared from the uploaded syllabus.';$('#ask-status').dataset.state='result';}
     $('#upload-message').textContent=result.notice|| (type==='analyze'?'Syllabus analysis complete. Review each unit and select Prepare this lesson.':'AI teaching material is ready.');
   }catch(error){
     if(requestRevision!==syllabusRevision)return;
@@ -302,7 +316,7 @@ function selectUnit(index){
   $('#ask-status').textContent=`Questions will focus on ${selectedUnit.title||`Unit ${index+1}`} and its listed syllabus topics.`;
   $('#ask-status').dataset.state='hint';updateAnalyzeButton();
 }
-$('#ask-button').addEventListener('click',()=>{const question=$('#question-input').value.trim();if(question&&syllabusText)callTutor('ask',{unitTitle:selectedUnit?.title||'',topics:JSON.stringify(selectedUnit?.topics||[]),question,wikipediaOptIn:$('#wiki-opt-in').checked?'yes':'no'});});
+$('#ask-button').addEventListener('click',()=>{const question=$('#question-input').value.trim();if(question&&syllabusText)callTutor('ask',{unitTitle:selectedUnit?.title||'',topics:JSON.stringify(selectedUnit?.topics||[]),question,answerLanguage:$('#question-answer-language').value,wikipediaOptIn:$('#wiki-opt-in').checked?'yes':'no'});});
 $('#question-input').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#ask-button').disabled){event.preventDefault();$('#ask-button').click();}});
 
 async function askGeneralEducation(){
@@ -310,8 +324,9 @@ async function askGeneralEducation(){
   if(!question||button.disabled)return;
   button.disabled=true;button.dataset.busy='1';answer.hidden=true;status.textContent='Preparing an educational answer…';
   try{
-    const result=await api('ask',{course:currentCourse||$('#course-name').value.trim()||'General education',syllabus:syllabusText,unitTitle:'',topics:'',question,wikipediaOptIn:'no'});
-    answer.replaceChildren(renderAnswer(result.text));answer.hidden=false;addAnswerTools(answer,{title:currentCourse||'Study answer',question,context:currentCourse||'General education',autoPdf:pdfWasRequested(question)});status.textContent=result.notice||'Answer ready.';$('#general-question').value='';
+    const answerLanguage=$('#general-answer-language').value;
+    const result=await api('ask',{course:currentCourse||$('#course-name').value.trim()||'General education',syllabus:syllabusText,unitTitle:'',topics:'',question,answerLanguage,wikipediaOptIn:'no'});
+    answer.replaceChildren(renderAnswer(result.text));answer.hidden=false;addAnswerTools(answer,{title:currentCourse||'Study answer',question,context:currentCourse||'General education',autoPdf:pdfWasRequested(question),answerLanguage});status.textContent=result.notice||'Answer ready.';$('#general-question').value='';
   }catch(error){
     status.textContent=friendlyAiError(error);
   }finally{delete button.dataset.busy;updateAnalyzeButton();}
