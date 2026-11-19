@@ -127,6 +127,24 @@ function resetCourseForReplacement(){
   $('#upload-message').textContent='';updateAnalyzeButton();
   return syllabusRevision;
 }
+async function createOcrWorker(language){
+  const sources=[
+    {cdn:'https://cdn.jsdelivr.net/npm',langPath:`https://cdn.jsdelivr.net/npm/@tesseract.js-data/${language}/4.0.0_best_int`},
+    {cdn:'https://unpkg.com',langPath:'https://tessdata.projectnaptha.com/4.0.0'}
+  ];
+  let lastError;
+  for(const source of sources){
+    try{
+      const {createWorker}=await import(`${source.cdn}/tesseract.js@5.1.1/dist/tesseract.esm.min.js`);
+      return await createWorker(language,1,{
+        workerPath:`${source.cdn}/tesseract.js@5.1.1/dist/worker.min.js`,
+        corePath:`${source.cdn}/tesseract.js-core@5.1.0`,
+        langPath:source.langPath
+      });
+    }catch(error){lastError=error;}
+  }
+  throw lastError||new Error('OCR engine could not be started.');
+}
 async function extractPdf(file,revision){
   if(!file||file.type!=='application/pdf'&&!file.name.toLowerCase().endsWith('.pdf'))throw new Error('Choose a PDF syllabus.');
   if(file.size>20*1024*1024)throw new Error('This PDF is over 20 MB. Please choose a smaller file.');
@@ -140,12 +158,12 @@ async function extractPdf(file,revision){
     const page=await pdf.getPage(i);const content=await page.getTextContent();let pageText=content.items.map(item=>item.str||'').join(' ').trim();
     if(pageText.length<30){
       try{
-        if(!ocrWorker){const language=$('#ocr-language').value||'eng';$('#upload-message').textContent=`Scanned pages detected. Loading ${$('#ocr-language').selectedOptions[0]?.textContent||'English'} OCR…`;const {createWorker}=await import('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js');ocrWorker=await createWorker(language);}
+        if(!ocrWorker){const language=$('#ocr-language').value||'eng';$('#upload-message').textContent=`Scanned pages detected. Loading ${$('#ocr-language').selectedOptions[0]?.textContent||'English'} OCR…`;ocrWorker=await createOcrWorker(language);}
         if(revision!==syllabusRevision){await ocrWorker.terminate();return;}
         $('#upload-message').textContent=`Reading scanned page ${i} of ${pdf.numPages}…`;
         const viewport=page.getViewport({scale:2});const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);const context=canvas.getContext('2d',{willReadFrequently:true});context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);await page.render({canvas,canvasContext:context,viewport}).promise;
         pageText=(await ocrWorker.recognize(canvas)).data.text.trim();canvas.width=0;canvas.height=0;
-      }catch(error){if(ocrWorker){await ocrWorker.terminate().catch(()=>{});ocrWorker=null;}if(!pageText)throw new Error('Could not read this scanned PDF. Check your internet connection and try again.');}
+      }catch(error){if(ocrWorker){await ocrWorker.terminate().catch(()=>{});ocrWorker=null;}if(!pageText){const detail=String(error?.message||error||'OCR engine failed').replace(/\s+/g,' ').slice(0,180);throw new Error(`Could not read scanned page ${i}. Check your connection to the OCR service and confirm the scanned PDF language is selected correctly. ${detail}`);}}
     }
     pages.push(pageText);
   }
