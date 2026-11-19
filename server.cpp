@@ -576,7 +576,7 @@ AiCall generateStudyImage(const std::map<std::string, std::string>& fields) {
     const auto topics = fields.count("topics") ? fields.at("topics") : "";
     const auto style = fields.count("visualType") ? fields.at("visualType") : "concept map";
     const auto syllabus = fields.count("syllabus") ? fields.at("syllabus") : "";
-    const std::string prompt = "Create one polished, readable educational study visual: " + style + ". Course: " + course +
+    const std::string prompt = "Create one polished, readable educational study visual: " + style + ". Write every visible label and explanation in the main language used by the uploaded syllabus; keep official course names, technical terms, code, and formulas unchanged where appropriate. Course: " + course +
         (unit.empty() ? " (cover the complete syllabus, organize by unit)" : "; focus on unit: " + unit) +
         ". Focus topics: " + topics + ". Use only factual concepts supported by this syllabus; preserve technical terms, spell them correctly, keep text concise and large, use a clear hierarchy, arrows/cards where helpful, high contrast, uncluttered layout, no fabricated details. "
         "This is a study aid, not a decorative poster. Syllabus: " + syllabus;
@@ -619,19 +619,20 @@ std::string aiPrompt(const std::string& type, const std::map<std::string, std::s
     const auto syllabus = fields.count("syllabus") ? fields.at("syllabus") : "";
     const auto unit = fields.count("unitTitle") ? fields.at("unitTitle") : "";
     const auto topics = fields.count("topics") ? fields.at("topics") : "";
+    const std::string languageRule = "LANGUAGE RULE: Reply in the language used in the user's latest request, whatever that language is. An explicit language instruction in the request takes priority. Detect the language from the request itself; do not default to English because this prompt, course name, or syllabus is in English. If the user writes Tamil in Latin letters (Tanglish), reply in natural Tanglish using Latin letters; if they write Tamil script, reply in Tamil script. Apply the same rule to every other language and script. Keep standard technical names, code, formulas, and programming keywords unchanged when appropriate. For syllabus analysis or lesson preparation where there is no natural-language question, use the main language of the uploaded syllabus while preserving official course and technical terms. ";
     if (type == "analyze") {
-        return "Analyze this course syllabus for a college faculty member who is new to teaching the subject. "
+        return languageRule + "Analyze this course syllabus for a college faculty member who is new to teaching the subject. "
                "Return ONLY valid JSON, no markdown fences, with this shape: {\"course_title\":string,\"course_summary\":string,\"units\":[{\"title\":string,\"topics\":[string],\"learning_outcomes\":[string]}]}. "
                "Keep every unit and topic faithful to the syllabus; do not invent units. Course: " + course + "\nSYLLABUS TEXT:\n" + syllabus;
     }
     if (type == "teach") {
-        return "You are ForgeFocus AI, a patient college teaching assistant. Prepare a classroom-ready lesson for course " + course +
+        return languageRule + "You are ForgeFocus AI, a patient college teaching assistant. Prepare a classroom-ready lesson for course " + course +
                ", unit " + unit + ", topics " + topics + ". Use clear headings: Learning goals, Simple explanation, Step-by-step teaching plan, Worked example, Common student confusion, Quick check questions with answers. "
                "Keep facts tied to the syllabus and label any useful background as extra context. SYLLABUS:\n" + syllabus;
     }
     const auto question = fields.count("question") ? fields.at("question") : "";
     const bool hasSyllabus = !syllabus.empty();
-    return "You are ForgeFocus AI, a capable education tutor for students and faculty across school and college subjects. Answer educational questions directly: explain concepts, solve problems step by step, give examples, explain code or calculations, make lessons, or create practice material as requested. Match the requested level; if none is stated, use clear plain language. Course context: " + course + ". "
+    return languageRule + "You are ForgeFocus AI, a capable education tutor for students and faculty across school and college subjects. Answer educational questions directly: explain concepts, solve problems step by step, give examples, explain code or calculations, make lessons, or create practice material as requested. Match the requested level; if none is stated, use clear plain language. Course context: " + course + ". "
            "First identify what the user is asking and answer that task. If they ask for test, quiz, practice, or exam questions (including informal wording like 'give 10 questions'), generate them; do not merely explain how. Use the number they request; if they ask for questions without a number, generate 10. For question sets, number each question and add a matching Answer key with a concise, clear answer for every number. Make a balanced mix of recall, understanding, and application questions when suitable. For all other requests, follow the requested format and do not turn the answer into a quiz. "
            "When the request asks about an uploaded course, a unit, its syllabus, or questions for that course, use the syllabus as the source for course-specific facts and do not invent syllabus contents. A syllabus may list a topic without teaching its definition; explain that topic using standard subject knowledge and label that explanation as extra learning context. If the user asks a broader education question, answer it using your subject knowledge even when an uploaded syllabus is present; do not refuse just because the answer is not written in the PDF. Clearly label syllabus facts versus extra learning context when both are used. "
            "When an active unit is provided and the request is about that unit, use its topics; if no unit is active, use the full syllabus only for course-specific questions. "
