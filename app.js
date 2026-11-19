@@ -46,11 +46,11 @@ async function api(path,fields={}){
 }
 function friendlyAiError(error){
   const message=String(error?.message||'').toLowerCase();
-  if(/credit|quota|billing|rate.?limit|429|resource_exhausted|insufficient_quota/.test(message))return 'The connected AI service has reached its usage limit. Check its available quota or try again later.';
+  if(/credit|quota|billing|rate.?limit|429|resource_exhausted|insufficient_quota/.test(message))return `An AI service reached its usage limit. Check its quota or try again later. Details: ${error.message}`;
   if(/rejected its api key|does not have access|invalid api key|unauthorized/.test(message))return 'The AI connection needs attention. Ask the faculty administrator to check the service key and access.';
   if(/not connected|add (gemini|openai)_api_key/.test(message))return 'No AI service is available right now. Ask the faculty administrator to connect an AI service.';
   if(/model is unavailable|selected ai model/.test(message))return 'The AI service needs a model configuration update. Ask the faculty administrator to check it.';
-  if(/temporar|busy|overload|high demand|timed out|request failed/.test(message))return 'The AI service is busy or temporarily unavailable. Your syllabus is saved; please retry shortly.';
+  if(/temporar|busy|overload|high demand|timed out|request failed/.test(message))return `The answer service is temporarily unavailable. Your syllabus is saved. Details: ${error.message}`;
   return error?.message||'The AI request could not be completed. Please try again.';
 }
 async function getProviders(){
@@ -332,7 +332,7 @@ async function callTutor(type,fields){
   }catch(error){
     if(requestRevision!==syllabusRevision)return;
     const safeError=friendlyAiError(error);
-    if(type==='ask'){showText(safeError,'AI');$('#lesson-title').textContent='Syllabus question';$('#ask-status').textContent='Please try again shortly. If this continues, contact the faculty administrator.';$('#ask-status').dataset.state='error';}
+    if(type==='ask'){showText(safeError,'AI');$('#lesson-title').textContent='Syllabus question';$('#ask-status').textContent=safeError;$('#ask-status').dataset.state='error';}
     $('#upload-message').textContent=safeError;
   }
   finally{delete button.dataset.busy;updateAnalyzeButton();}

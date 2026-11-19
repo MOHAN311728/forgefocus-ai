@@ -546,7 +546,10 @@ AiCall askProvider(const std::string& prompt, const std::string& type) {
     }
     auto fallback = askProviderOnce(alternate, prompt, type, keys);
     if (!fallback.ready && alternate == "gemini" && type != "ask") fallback = retryGeminiModels(fallback, prompt, type, keys);
-    if (!fallback.ready) { fallback.message = "AI service is busy or temporarily unavailable. Please try again in a minute."; return fallback; }
+    if (!fallback.ready) {
+        fallback.message = "Both answer attempts failed. First attempt: " + result.message + " Backup attempt: " + fallback.message;
+        return fallback;
+    }
     fallback.notice = "Your syllabus answer is ready.";
     return fallback;
 }
