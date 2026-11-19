@@ -127,6 +127,13 @@ function resetCourseForReplacement(){
   $('#upload-message').textContent='';updateAnalyzeButton();
   return syllabusRevision;
 }
+async function loadOcrLibrary(cdn){
+  if(window.Tesseract&&typeof window.Tesseract.createWorker==='function')return window.Tesseract;
+  const script=document.createElement('script');script.src=`${cdn}/tesseract.js@5.1.1/dist/tesseract.min.js`;script.async=true;
+  await new Promise((resolve,reject)=>{script.onload=resolve;script.onerror=()=>reject(new Error('OCR library script could not be downloaded.'));document.head.append(script);});
+  if(!window.Tesseract||typeof window.Tesseract.createWorker!=='function')throw new Error('OCR library loaded without its worker function.');
+  return window.Tesseract;
+}
 async function createOcrWorker(language){
   const sources=[
     {cdn:'https://cdn.jsdelivr.net/npm',langPath:`https://cdn.jsdelivr.net/npm/@tesseract.js-data/${language}/4.0.0_best_int`},
@@ -135,8 +142,8 @@ async function createOcrWorker(language){
   let lastError;
   for(const source of sources){
     try{
-      const {createWorker}=await import(`${source.cdn}/tesseract.js@5.1.1/dist/tesseract.esm.min.js`);
-      return await createWorker(language,1,{
+      const tesseract=await loadOcrLibrary(source.cdn);
+      return await tesseract.createWorker(language,1,{
         workerPath:`${source.cdn}/tesseract.js@5.1.1/dist/worker.min.js`,
         corePath:`${source.cdn}/tesseract.js-core@5.1.0`,
         langPath:source.langPath
