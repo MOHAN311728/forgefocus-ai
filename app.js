@@ -2,7 +2,32 @@ const API='/api/ai';
 const ACCOUNT_KEY='forgefocus-account-v1';
 const $=s=>document.querySelector(s);
 let faculty=null, facultyToken=sessionStorage.getItem('forgefocus-id-token')||'', syllabusText='', syllabusName='', currentCourse='', units=[], selectedUnit=null, providerReady={}, syllabusRevision=0;
+let currentPage='home', studioPageState={upload:false,workspace:true,empty:false};
 const loginScreen=$('#login-screen'), app=$('#app'), inputFile=$('#syllabus-file');
+
+function showPage(page){
+  if(currentPage==='studio'){
+    studioPageState={upload:!$('#upload-section').hidden,workspace:!$('#course-workspace').hidden,empty:!$('#course-empty').hidden};
+  }
+  currentPage=page;
+  $('#landing-page').hidden=page!=='home';
+  $('#syllabus-page').hidden=page==='home';
+  document.querySelectorAll('.nav-item').forEach(item=>item.classList.toggle('active',item.dataset.view===page));
+  if(page==='home'){
+    $('#page-title').textContent='Home';
+  }else if(page==='courses'){
+    $('#page-title').textContent='My courses';
+    $('#upload-section').hidden=true;$('#course-workspace').hidden=true;$('#course-empty').hidden=true;$('#course-library').hidden=false;
+    renderCourseLibrary();
+  }else{
+    $('#page-title').textContent='Syllabus studio';
+    $('#course-library').hidden=true;
+    $('#upload-section').hidden=!studioPageState.upload;
+    $('#course-workspace').hidden=!studioPageState.workspace;
+    $('#course-empty').hidden=!studioPageState.empty;
+  }
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 
 function localKey(){return `forgefocus-courses:${faculty?.sub||'guest'}`;}
 function authHeaders(){return window.FORGEFOCUS_CONFIG?.hosted&&facultyToken?{Authorization:`Bearer ${facultyToken}`}:{ };}
@@ -44,7 +69,7 @@ function updateAnalyzeButton(){
     }
   }
 }
-function showWorkspace(){loginScreen.hidden=true;app.hidden=false;$('#faculty-name').textContent=faculty.name;$('#avatar').textContent=(faculty.name||'F').trim().charAt(0).toUpperCase();$('#account-email').textContent=faculty.email;$('#account-email').title=faculty.email;$('#account-avatar').textContent=(faculty.name||faculty.email||'F').trim().charAt(0).toUpperCase();$('#account-dialog-email').textContent=faculty.email;$('#course-empty').hidden=false;getProviders();restoreCourse();renderCourseLibrary();}
+function showWorkspace(){loginScreen.hidden=true;app.hidden=false;$('#faculty-name').textContent=faculty.name;$('#avatar').textContent=(faculty.name||'F').trim().charAt(0).toUpperCase();$('#account-email').textContent=faculty.email;$('#account-email').title=faculty.email;$('#account-avatar').textContent=(faculty.name||faculty.email||'F').trim().charAt(0).toUpperCase();$('#account-dialog-email').textContent=faculty.email;$('#course-empty').hidden=true;getProviders();restoreCourse();renderCourseLibrary();studioPageState={upload:true,workspace:!$('#course-workspace').hidden,empty:false};showPage('home');}
 function parseCredential(response){
   try{
     const clientId=window.FORGEFOCUS_CONFIG?.googleClientId||'';
@@ -160,7 +185,7 @@ function renderCourseLibrary(){
   let courses=[];try{courses=JSON.parse(localStorage.getItem(localKey())||'[]');}catch{}
   if(!courses.length){const empty=document.createElement('div');empty.className='library-empty card';empty.textContent='No saved courses yet. Upload a syllabus PDF in Syllabus studio.';list.append(empty);return;}
   courses.forEach(course=>{const card=document.createElement('button');card.type='button';card.className='library-card card';const title=document.createElement('strong');title.textContent=course.title;const detail=document.createElement('span');detail.textContent=`${course.units?.length||0} units · ${course.file||'Syllabus PDF'}`;const open=document.createElement('b');open.textContent='OPEN COURSE →';card.append(title,detail,open);card.addEventListener('click',()=>{
-      currentCourse=course.title;syllabusText=course.syllabus||'';syllabusName=course.file||'';units=course.units||[];$('#course-name').value=course.title;renderUnits({course_title:course.title,course_summary:course.summary,units});$('#course-library').hidden=true;$('#course-workspace').hidden=false;$('#upload-section').hidden=false;$('#file-label').textContent=syllabusName||'Saved course loaded';$('#file-subtitle').textContent='Saved in this browser';$('#page-title').textContent='Syllabus studio';window.scrollTo({top:0,behavior:'smooth'});
+      currentCourse=course.title;syllabusText=course.syllabus||'';syllabusName=course.file||'';units=course.units||[];$('#course-name').value=course.title;renderUnits({course_title:course.title,course_summary:course.summary,units});$('#course-library').hidden=true;$('#course-workspace').hidden=false;$('#upload-section').hidden=false;$('#course-empty').hidden=true;$('#file-label').textContent=syllabusName||'Saved course loaded';$('#file-subtitle').textContent='Saved in this browser';studioPageState={upload:true,workspace:true,empty:false};showPage('studio');
     });list.append(card);});
 }
 function restoreCourse(){
@@ -343,9 +368,6 @@ $('#settings-form').addEventListener('submit',async e=>{
   finally{submit.disabled=false;}
 });
 
-document.querySelectorAll('.nav-item').forEach(button=>button.addEventListener('click',()=>{
-  document.querySelectorAll('.nav-item').forEach(item=>item.classList.toggle('active',item===button));
-  if(button.dataset.view==='courses'){ $('#page-title').textContent='My courses';$('#upload-section').hidden=true;$('#course-workspace').hidden=true;$('#course-empty').hidden=true;$('#course-library').hidden=false;renderCourseLibrary();window.scrollTo({top:0,behavior:'smooth'}); }
-  else { $('#page-title').textContent='Syllabus studio';$('#upload-section').hidden=false;$('#course-library').hidden=true;$('#course-empty').hidden=!$('#course-workspace').hidden;window.scrollTo({top:0,behavior:'smooth'}); }
-}));
-$('#new-course').addEventListener('click',()=>{currentCourse='';syllabusText='';syllabusName='';units=[];selectedUnit=null;inputFile.value='';$('#course-name').value='';$('#file-label').textContent='Drop the syllabus PDF here';$('#file-subtitle').innerHTML='or <u>browse files</u> from your device';$('#course-workspace').hidden=true;$('#course-library').hidden=true;$('#upload-section').hidden=false;$('#course-empty').hidden=false;$('#page-title').textContent='Syllabus studio';document.querySelector('[data-view="studio"]').classList.add('active');document.querySelector('[data-view="courses"]').classList.remove('active');window.scrollTo({top:0,behavior:'smooth'});});
+document.querySelectorAll('.nav-item').forEach(button=>button.addEventListener('click',()=>showPage(button.dataset.view)));
+document.querySelector('[data-page="studio"]')?.addEventListener('click',event=>{event.preventDefault();showPage('studio');});
+$('#new-course').addEventListener('click',()=>{currentCourse='';syllabusText='';syllabusName='';units=[];selectedUnit=null;inputFile.value='';$('#course-name').value='';$('#file-label').textContent='Drop the syllabus PDF here';$('#file-subtitle').innerHTML='or <u>browse files</u> from your device';$('#course-workspace').hidden=true;$('#course-library').hidden=true;$('#upload-section').hidden=false;$('#course-empty').hidden=true;studioPageState={upload:true,workspace:false,empty:false};showPage('studio');});

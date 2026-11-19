@@ -15,28 +15,30 @@
   <div id="app" class="app" hidden>
     <aside class="sidebar">
       <a class="sidebar-brand" href="#"><span class="brand-mark">F</span><span>ForgeFocus <b>AI</b></span></a>
-      <p class="nav-label">WORKSPACE</p><button class="nav-item active" data-view="studio"><span>▤</span> Syllabus studio</button><button class="nav-item" data-view="courses"><span>▣</span> My courses</button>
+      <p class="nav-label">WORKSPACE</p><button class="nav-item active" data-view="home"><span>⌂</span> Home</button><button class="nav-item" data-view="studio"><span>▤</span> Syllabus studio</button><button class="nav-item" data-view="courses"><span>▣</span> My courses</button>
       <div class="sidebar-course"><p class="nav-label">CURRENT COURSE</p><div id="sidebar-course-title" class="course-placeholder">Upload a syllabus<br>to get started</div></div>
       <div class="sidebar-bottom"><span class="avatar" id="avatar">F</span><div class="user-label"><b id="faculty-name">Faculty</b><small>FACULTY ACCOUNT</small></div><button id="sign-out" class="icon-button" title="Sign out">↪</button></div>
     </aside>
 
     <main class="main-content">
       <header class="topbar"><div><span class="breadcrumb">WORKSPACE</span><span class="crumb-divider">/</span><strong id="page-title">Syllabus studio</strong></div><div class="top-actions"><span id="server-status" class="connection"><i></i> C++ ENGINE</span><button id="settings-open" class="outline-button">AI PROVIDERS</button><button id="account-open" class="account-chip" type="button" aria-haspopup="dialog" aria-controls="account-dialog"><span id="account-avatar" class="avatar">F</span><span id="account-email">Google account</span><span class="account-chevron">▾</span></button></div></header>
-      <section class="welcome"><div><p class="eyebrow">SYLLABUS TO CLASSROOM</p><h1>Teach a new subject<br>with <em>confidence.</em></h1><p>Let AI read the syllabus, map every unit, and help you teach it step by step.</p><div class="welcome-links"><a class="welcome-primary" href="#upload-section">Get started <span>→</span></a><a class="welcome-secondary" href="#general-question">Ask a study question</a></div></div><div class="welcome-art"><span>✳</span><small>YOUR TEACHING<br>CO-PILOT</small></div></section>
+      <div id="landing-page">
+      <section class="welcome"><div><p class="eyebrow">SYLLABUS TO CLASSROOM</p><h1>Teach a new subject<br>with <em>confidence.</em></h1><p>Let AI read the syllabus, map every unit, and help you teach it step by step.</p><div class="welcome-links"><a class="welcome-primary" href="#upload-section" data-page="studio">Get started <span>→</span></a><a class="welcome-secondary" href="#general-question">Ask a study question</a></div></div><div class="welcome-art"><span>✳</span><small>YOUR TEACHING<br>CO-PILOT</small></div></section>
+      <section class="general-qa card">
+        <div class="section-heading"><div><p class="eyebrow">EDUCATION HELP</p><h2>Ask any study question</h2><p>Concept explanations, worked problems, examples, study help, or exam practice.</p></div></div>
+        <label class="answer-language-label" for="general-answer-language">ANSWER LANGUAGE</label><div class="ask-row"><select id="general-answer-language" class="answer-language-select" aria-label="Answer language"></select><input id="general-question" placeholder="e.g. Explain binary search with an example…"><button id="general-ask" class="ask-button" disabled>ASK <span>→</span></button></div>
+        <p id="general-qa-status" class="ask-status" role="status" aria-live="polite">Ask a question from any subject. Upload a syllabus when you want a course-specific answer.</p>
+        <div id="general-qa-answer" class="lesson-result answer-panel" hidden></div>
+      </section>
+      </div>
 
+      <div id="syllabus-page" hidden>
       <section id="upload-section" class="upload-section card">
         <div class="section-heading"><div><p class="eyebrow">STEP 01</p><h2>Start with your syllabus</h2></div><span class="file-badge">PDF · MAX 20 MB</span></div>
         <div class="upload-grid"><label id="drop-zone" class="drop-zone" for="syllabus-file"><input id="syllabus-file" type="file" accept="application/pdf,.pdf" hidden><span class="upload-icon">↑</span><strong id="file-label">Drop the syllabus PDF here</strong><span id="file-subtitle">or <u>browse files</u> from your device</span><small>Text PDFs and scanned PDFs are supported; scanned pages are read with OCR.</small></label>
           <div class="course-fields"><label for="course-name">SUBJECT / COURSE NAME</label><input id="course-name" placeholder="e.g. Software Engineering"><label for="ocr-language">SCANNED PDF LANGUAGE</label><select id="ocr-language" aria-describedby="ocr-language-hint"><option value="eng">English</option><option value="tam">தமிழ் · Tamil</option><option value="hin">हिन्दी · Hindi</option><option value="tel">తెలుగు · Telugu</option><option value="kan">ಕನ್ನಡ · Kannada</option><option value="mal">മലയാളം · Malayalam</option><option value="ben">বাংলা · Bengali</option><option value="mar">मराठी · Marathi</option><option value="guj">ગુજરાતી · Gujarati</option><option value="pan">ਪੰਜਾਬੀ · Punjabi</option><option value="urd">اردو · Urdu</option><option value="ara">العربية · Arabic</option><option value="fra">Français · French</option><option value="spa">Español · Spanish</option></select><small id="ocr-language-hint" class="provider-hint">Choose the main language if this PDF is a scanned image.</small><label for="provider-select">ANSWER ENGINE</label><select id="provider-select"><option value="openai">AI (automatic)</option></select><div id="provider-hint" class="provider-hint">Checking AI setup…</div><button id="analyze-button" class="primary-button" disabled>Analyze syllabus <span>→</span></button></div>
         </div>
         <p id="upload-message" class="status-message" aria-live="polite"></p>
-      </section>
-
-      <section class="general-qa card">
-        <div class="section-heading"><div><p class="eyebrow">EDUCATION HELP</p><h2>Ask any study question</h2><p>Concept explanations, worked problems, examples, study help, or exam practice.</p></div></div>
-        <label class="answer-language-label" for="general-answer-language">ANSWER LANGUAGE</label><div class="ask-row"><select id="general-answer-language" class="answer-language-select" aria-label="Answer language"></select><input id="general-question" placeholder="e.g. Explain binary search with an example…"><button id="general-ask" class="ask-button" disabled>ASK <span>→</span></button></div>
-        <p id="general-qa-status" class="ask-status" role="status" aria-live="polite">Ask a question from any subject. Upload a syllabus when you want a course-specific answer.</p>
-        <div id="general-qa-answer" class="lesson-result answer-panel" hidden></div>
       </section>
 
       <section id="course-workspace" class="course-workspace" hidden>
@@ -46,6 +48,7 @@
       </section>
       <section id="course-library" class="course-library" hidden><div class="workspace-title"><div><p class="eyebrow">FACULTY LIBRARY</p><h2>My courses</h2><p>Continue preparing any syllabus saved to this browser.</p></div><button id="new-course" class="primary-button">Upload a syllabus <span>→</span></button></div><div id="course-list" class="course-list"></div></section>
       <section id="course-empty" class="course-empty"><div class="empty-symbol">✳</div><h2>Your courses will appear here</h2><p>Each Google account keeps its own course workspace on this device.</p></section>
+      </div>
       <footer>FORGEFOCUS AI <span>·</span> PLAN CLEARLY. TEACH WITH CONFIDENCE. <span>·</span> OWNED BY P. MOHAN</footer>
     </main>
   </div>
