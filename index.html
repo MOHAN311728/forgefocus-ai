@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f6f1">
-  <title>ForgeFocus AI — Syllabus to Classroom</title><link rel="stylesheet" href="style.css">
+  <title>ForgeFocus AI — Syllabus to Classroom</title><script>try{document.documentElement.dataset.theme=localStorage.getItem('forgefocus-theme')||'light'}catch{document.documentElement.dataset.theme='light'}</script><link rel="stylesheet" href="style.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div id="login-screen" class="login-screen">
-    <div class="login-brand"><span class="brand-mark">F</span><span>ForgeFocus <b>AI</b></span></div>
+    <button id="login-theme-toggle" class="theme-toggle login-theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Dark mode</span></button><div class="login-brand"><span class="brand-mark">F</span><span>ForgeFocus <b>AI</b></span></div>
     <div class="login-card"><p class="eyebrow">FACULTY WORKSPACE</p><h1>Turn any syllabus<br>into a <em>teachable course.</em></h1><p class="login-copy">Upload the syllabus PDF. ForgeFocus AI maps the units and helps you prepare lessons, examples, questions, and explanations.</p><div id="google-button"></div><p id="login-message" class="subtle" aria-live="polite">Sign in with your Google account to open your workspace.</p></div>
     <p class="login-foot">YOUR SYLLABUS · YOUR TEACHING WORKSPACE · OWNED BY P. MOHAN</p>
   </div>
@@ -21,7 +21,7 @@
     </aside>
 
     <main class="main-content">
-      <header class="topbar"><div><span class="breadcrumb">WORKSPACE</span><span class="crumb-divider">/</span><strong id="page-title">Syllabus studio</strong></div><div class="top-actions"><span id="server-status" class="connection"><i></i> C++ ENGINE</span><button id="settings-open" class="outline-button">AI PROVIDERS</button><button id="account-open" class="account-chip" type="button" aria-haspopup="dialog" aria-controls="account-dialog"><span id="account-avatar" class="avatar">F</span><span id="account-email">Google account</span><span class="account-chevron">▾</span></button></div></header>
+      <header class="topbar"><div><span class="breadcrumb">WORKSPACE</span><span class="crumb-divider">/</span><strong id="page-title">Syllabus studio</strong></div><div class="top-actions"><span id="server-status" class="connection"><i></i> C++ ENGINE</span><button id="settings-open" class="outline-button">AI PROVIDERS</button><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Dark mode</span></button><button id="account-open" class="account-chip" type="button" aria-haspopup="dialog" aria-controls="account-dialog"><span id="account-avatar" class="avatar">F</span><span id="account-email">Google account</span><span class="account-chevron">▾</span></button></div></header>
       <div id="landing-page">
       <section class="welcome"><div><p class="eyebrow">SYLLABUS TO CLASSROOM</p><h1>Teach a new subject<br>with <em>confidence.</em></h1><p>Let AI read the syllabus, map every unit, and help you teach it step by step.</p><div class="welcome-links"><a class="welcome-primary" href="#upload-section" data-page="studio">Get started <span>→</span></a><a class="welcome-secondary" href="#general-question">Ask a study question</a></div></div><div class="welcome-art"><span>✳</span><small>YOUR TEACHING<br>CO-PILOT</small></div></section>
       <section class="general-qa card">

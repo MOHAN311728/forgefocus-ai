@@ -4,6 +4,14 @@ const $=s=>document.querySelector(s);
 let faculty=null, facultyToken=sessionStorage.getItem('forgefocus-id-token')||'', syllabusText='', syllabusName='', currentCourse='', units=[], selectedUnit=null, providerReady={}, syllabusRevision=0;
 let currentPage='home', studioPageState={upload:false,workspace:true,empty:false};
 const loginScreen=$('#login-screen'), app=$('#app'), inputFile=$('#syllabus-file');
+const themeButtons=[...document.querySelectorAll('.theme-toggle')];
+function setTheme(theme){
+  const dark=theme==='dark';document.documentElement.dataset.theme=dark?'dark':'light';
+  try{localStorage.setItem('forgefocus-theme',dark?'dark':'light');}catch{}
+  themeButtons.forEach(button=>{button.setAttribute('aria-pressed',String(dark));button.setAttribute('aria-label',`Switch to ${dark?'light':'dark'} mode`);button.querySelector('.theme-icon').textContent=dark?'☀':'☾';button.querySelector('.theme-label').textContent=dark?'Light mode':'Dark mode';});
+}
+themeButtons.forEach(button=>button.addEventListener('click',()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark')));
+setTheme(document.documentElement.dataset.theme==='dark'?'dark':'light');
 
 function showPage(page){
   if(currentPage==='studio'){
