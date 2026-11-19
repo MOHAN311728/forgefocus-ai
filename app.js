@@ -317,6 +317,7 @@ $('#visual-button').addEventListener('click',async()=>{
 async function callTutor(type,fields){
   const button=type==='ask'?$('#ask-button'):$('#analyze-button');button.disabled=true;button.dataset.busy='1';
   const requestRevision=syllabusRevision;
+  if(type==='analyze')$('#upload-message').textContent='Analyzing the syllabus and mapping its units… This step is limited to about 35 seconds.';
   if(type==='ask'){
     $('#lesson-title').textContent='Syllabus question';
     showText('Reading the syllabus and preparing your answer…','AI');

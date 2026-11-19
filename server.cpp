@@ -424,7 +424,7 @@ bool verifyGoogleIdToken(const std::string& token) {
     if (token.empty() || token.size() > 5000 || clientId.empty()) return false;
     int status = -1;
     const std::string response = runCurl(
-        "https://oauth2.googleapis.com/tokeninfo?id_token=" + urlEncode(token), "", {}, "", status);
+        "https://oauth2.googleapis.com/tokeninfo?id_token=" + urlEncode(token), "", {}, "", status, 5, 0);
     if (status != 0) return false;
     const std::string issuer = jsonStringField(response, "iss");
     return jsonScalarField(response, "aud") == clientId &&
@@ -468,17 +468,17 @@ AiCall askProviderOnce(const std::string& provider, const std::string& prompt, c
         model = modelOverride.empty() ? fileSetting("FORGEFOCUS_GEMINI_MODEL", "gemini-3.8-flash") : modelOverride;
         endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
         headers.push_back("x-goog-api-key: " + key);
-        request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "3000" : "6500") + "}}";
+        request = "{\"contents\":[{\"parts\":[{\"text\":\"" + jsonEscape(prompt) + "\"}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":" + (type == "ask" ? "3000" : (type == "analyze" ? "5000" : "6500")) + "}}";
     } else {
         model = fileSetting("FORGEFOCUS_OPENAI_MODEL", "gpt-6.1-sol");
         endpoint = "https://api.openai.com/v1/responses";
         headers.push_back("Authorization: Bearer " + key);
-        request = "{\"model\":\"" + jsonEscape(model) + "\",\"instructions\":\"You are ForgeFocus AI, a careful and accurate college teaching assistant. Follow the syllabus for course-specific answers and clearly label general background.\",\"input\":\"" + jsonEscape(prompt) + "\",\"reasoning\":{\"effort\":\"" + (type == "ask" ? "low" : "medium") + "\"},\"max_output_tokens\":" + (type == "ask" ? "3000" : "6500") + "}";
+        request = "{\"model\":\"" + jsonEscape(model) + "\",\"instructions\":\"You are ForgeFocus AI, a careful and accurate college teaching assistant. Follow the syllabus for course-specific answers and clearly label general background.\",\"input\":\"" + jsonEscape(prompt) + "\",\"reasoning\":{\"effort\":\"" + ((type == "ask" || type == "analyze") ? "low" : "medium") + "\"},\"max_output_tokens\":" + (type == "ask" ? "3000" : (type == "analyze" ? "5000" : "6500")) + "}";
     }
     int status = -1;
     // A question gets one bounded provider attempt. The caller may make one bounded fallback attempt.
-    const std::string response = type == "ask"
-        ? runCurl(endpoint, key, headers, request, status, 17, 0)
+    const std::string response = (type == "ask" || type == "analyze")
+        ? runCurl(endpoint, key, headers, request, status, type == "analyze" ? 15 : 17, 0)
         : runCurl(endpoint, key, headers, request, status);
     if (status != 0) {
         const auto detail = jsonStringField(response, "message");
@@ -537,7 +537,7 @@ AiCall askProvider(const std::string& prompt, const std::string& type) {
     const std::string preferred = (type == "analyze" || type == "teach") ? "gemini" :
         (configuredProviderKey("openai", keys).empty() ? "gemini" : "openai");
     auto result = askProviderOnce(preferred, prompt, type, keys);
-    if (!result.ready && preferred == "gemini" && type != "ask") result = retryGeminiModels(result, prompt, type, keys);
+    if (!result.ready && preferred == "gemini" && type != "ask" && type != "analyze") result = retryGeminiModels(result, prompt, type, keys);
     if (result.ready || !result.fallbackEligible) return result;
     const std::string alternate = preferred == "openai" ? "gemini" : "openai";
     if (configuredProviderKey(alternate, keys).empty()) {
@@ -545,7 +545,7 @@ AiCall askProvider(const std::string& prompt, const std::string& type) {
         return result;
     }
     auto fallback = askProviderOnce(alternate, prompt, type, keys);
-    if (!fallback.ready && alternate == "gemini" && type != "ask") fallback = retryGeminiModels(fallback, prompt, type, keys);
+    if (!fallback.ready && alternate == "gemini" && type != "ask" && type != "analyze") fallback = retryGeminiModels(fallback, prompt, type, keys);
     if (!fallback.ready) {
         fallback.message = "Both answer attempts failed. First attempt: " + result.message + " Backup attempt: " + fallback.message;
         return fallback;
